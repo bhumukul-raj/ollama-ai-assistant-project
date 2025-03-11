@@ -11,15 +11,21 @@
     "jsx": "react",
     "moduleResolution": "node",
     "esModuleInterop": true,
-    "strict": false,
+    "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
     "useDefineForClassFields": false,
-    "noImplicitAny": false,
-    "types": ["node"],
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "noImplicitAny": true,
+    "types": [
+      "node",
+      "jest"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@jupyterlab/*": ["node_modules/@jupyterlab/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": [

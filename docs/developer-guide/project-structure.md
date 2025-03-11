@@ -142,4 +142,14 @@ During the build process, several files are generated:
 - `lib/`: Temporary TypeScript output directory
 - `*.egg-info/`: Python package metadata
 
-These directories should not be manually edited as they are generated during the build process. 
+These directories should not be manually edited as they are generated during the build process.
+
+## Components
+
+The `src/components` directory contains React components used in the extension:
+
+- `AIAssistantPanel.tsx`: Main panel component that hosts the chat interface
+- `MessageList.tsx`: Displays chat messages and handles message interactions
+- `InputArea.tsx`: Text input area for user messages
+- `ModelSelector.tsx`: Component for selecting and managing Ollama models
+- `ConversationList.tsx`: Manages saved conversations 

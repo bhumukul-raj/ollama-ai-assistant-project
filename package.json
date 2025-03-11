@@ -65,6 +65,7 @@
     "@jupyterlab/codeeditor": "^4.3.5",
     "@jupyterlab/notebook": "^4.3.5",
     "@jupyterlab/notebook-extension": "^4.3.5",
+    "@jupyterlab/observables": "^4.3.5",
     "@jupyterlab/services": "^7.3.5",
     "@jupyterlab/ui-components": "^4.3.5",
     "@lumino/algorithm": "^2.0.2",

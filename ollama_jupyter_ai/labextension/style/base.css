@@ -1927,4 +1927,135 @@ div.jp-AIAssistant-fullwidth {
 
 .jp-AIAssistant-connection-disconnected {
   color: #dc3545;
+}
+
+.jp-AIAssistant-cell-button-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  position: relative;
+  z-index: 10; /* Ensure buttons appear above other cell content */
+  width: 100%; /* Take full width to center buttons */
+  margin-top: 5px; /* Add space between cell content and buttons */
+}
+
+.jp-Cell-inputArea-attachments {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.jp-AIAssistant-cell-buttons-container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.jp-AIAssistant-cell-buttons-active {
+  opacity: 1;
+}
+
+.jp-AIAssistant-cell-button {
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+  border-radius: 5px;
+  visibility: hidden;
+  min-width: 80px;
+  height: 32px;
+  position: relative;
+  font-size: 12px;
+  background-color: var(--jp-layout-color2);
+  border: 1px solid var(--jp-border-color1);
+}
+
+/* Show when parent has active class */
+.jp-AIAssistant-cell-button-active {
+  visibility: visible !important;
+  opacity: 0.9 !important;
+}
+
+/* Button type-specific styles */
+.jp-AIAssistant-ask-button {
+  background-color: var(--jp-brand-color3);
+  color: var(--jp-ui-inverse-font-color1);
+}
+
+.jp-AIAssistant-analyze-button {
+  background-color: var(--jp-info-color3);
+  color: var(--jp-ui-inverse-font-color1);
+}
+
+.jp-AIAssistant-improve-button {
+  background-color: var(--jp-success-color3);
+  color: var(--jp-ui-inverse-font-color1);
+}
+
+.jp-AIAssistant-cell-button:hover {
+  opacity: 1 !important;
+  transform: scale(1.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.jp-AIAssistant-cell-button:active {
+  transform: scale(0.98);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Remove the hover-only visibility for all cell buttons */
+.jp-Cell-toolbar .jp-AIAssistant-cell-button {
+  /* Make visibility controlled by JS instead */
+  visibility: hidden;
+}
+
+/* Animation for the button */
+@keyframes ai-button-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.jp-AIAssistant-cell-button:hover .fa-icon-sm {
+  animation: ai-button-pulse 0.5s ease-in-out;
+}
+
+/* Add this to give a better hint about which cell is active */
+.jp-Notebook .jp-Cell.jp-mod-active .jp-AIAssistant-cell-button-wrapper {
+  opacity: 1;
+}
+
+/* Animation for the button */
+@keyframes ai-button-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* Make buttons appear below the cell */
+.jp-Cell .jp-Cell-inputArea-attachments {
+  order: 100; /* Push to the end */
+}
+
+.jp-Cell {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Style the active cell indicator */
+.jp-Notebook .jp-Cell.jp-mod-active .jp-AIAssistant-cell-buttons-container {
+  border-top: 1px solid var(--jp-border-color2);
+  padding-top: 8px;
 } 
