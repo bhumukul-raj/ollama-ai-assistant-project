@@ -17,7 +17,7 @@ export interface Message {
   tab?: TabType;
 }
 
-export type TabType = 'chat' | 'analyze' | 'improve';
+export type TabType = 'chat';
 
 interface UserPreferences {
   autoScroll: boolean;
@@ -58,8 +58,6 @@ interface AIAssistantContextValue {
   
   // Message operations
   sendChatMessage: (message: string) => Promise<void>;
-  analyzeCurrentCell: () => Promise<void>;
-  improveCurrentCell: () => Promise<void>;
   retryLastMessage: () => Promise<void>;
   regenerateResponse: () => Promise<void>;
   clearMessages: (tabType?: TabType) => void;
@@ -67,6 +65,7 @@ interface AIAssistantContextValue {
   
   // Notebook operations
   refreshNotebookContent: () => void;
+  refreshActiveCellContent: () => void;
   insertCodeCell: (content: string, index?: number) => void;
   executeCodeCell: (index: number) => Promise<void>;
   
@@ -224,20 +223,18 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     
     try {
       // Generate response
-      const { requestId: responseId, response, fromCache } = await ollama.generateChatResponse(
+      const response = await ollama.generateResponse(
         message,
         notebook.notebookContent,
-        handlePartialResponse,
-        requestId // Pass the same requestId to the API call
+        handlePartialResponse
       );
       
-      // Update message with final response
+      // Update message with completed response
       updateMessage({
         ...assistantMessage,
         content: response,
         status: 'complete',
-        requestId: responseId, // Use the requestId returned by the API (should be the same)
-        fromCache,
+        requestId,
         timestamp: { 
           start: assistantMessage.timestamp?.start, 
           end: Date.now() 
@@ -261,174 +258,14 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     }
   }, [ollama, notebook.notebookContent, addMessage, updateMessage, setChatInput]);
   
-  // Analyze current cell
-  const analyzeCurrentCell = useCallback(async () => {
-    if (!notebook.activeCellContent) return;
-    
-    const { content, cellType } = notebook.activeCellContent;
-    
-    // Add user message showing what's being analyzed
-    const userMessage: Message = {
-      role: 'user',
-      content: `Analyze this ${cellType} cell:\n\n\`\`\`${cellType}\n${content}\n\`\`\``,
-      timestamp: { start: Date.now() }
-    };
-    addMessage(userMessage);
-    
-    // Add assistant loading message
-    const assistantMessage: Message = {
-      role: 'assistant',
-      content: '',
-      status: 'loading',
-      timestamp: { start: Date.now() }
-    };
-    addMessage(assistantMessage);
-    
-    // Create a partial response update handler
-    let accumulatedResponse = '';
-    const handlePartialResponse = (partialResponse: string, done: boolean, fromCache?: boolean) => {
-      accumulatedResponse = partialResponse;
-      
-      // Update assistant message with current accumulated response
-      updateMessage({
-        ...assistantMessage,
-        content: accumulatedResponse,
-        status: done ? 'complete' : 'loading',
-        fromCache: fromCache,
-        timestamp: { 
-          start: assistantMessage.timestamp?.start,
-          end: done ? Date.now() : undefined 
-        }
-      });
-    };
-    
-    try {
-      // Generate analysis
-      const { requestId, analysis, fromCache } = await ollama.analyzeCode(
-        content,
-        handlePartialResponse
-      );
-      
-      // Update message with completed analysis
-      updateMessage({
-        ...assistantMessage,
-        content: analysis,
-        status: 'complete',
-        requestId,
-        fromCache,
-        timestamp: { 
-          start: assistantMessage.timestamp?.start, 
-          end: Date.now() 
-        }
-      });
-    } catch (error) {
-      // Update message with error status
-      updateMessage({
-        ...assistantMessage,
-        content: 'An error occurred while analyzing the code.',
-        status: 'error',
-        timestamp: { 
-          start: assistantMessage.timestamp?.start, 
-          end: Date.now() 
-        }
-      });
-    }
-  }, [notebook.activeCellContent, ollama, addMessage, updateMessage]);
-  
-  // Improve current cell
-  const improveCurrentCell = useCallback(async () => {
-    if (!notebook.activeCellContent) return;
-    
-    const { content, cellType, index } = notebook.activeCellContent;
-    
-    // Only allow improving code cells
-    if (cellType !== 'code') {
-      console.warn('Can only improve code cells');
-      return;
-    }
-    
-    // Add user message showing what's being improved
-    const userMessage: Message = {
-      role: 'user',
-      content: `Improve this code:\n\n\`\`\`python\n${content}\n\`\`\``,
-      timestamp: { start: Date.now() }
-    };
-    addMessage(userMessage);
-    
-    // Add assistant loading message
-    const assistantMessage: Message = {
-      role: 'assistant',
-      content: '',
-      status: 'loading',
-      timestamp: { start: Date.now() }
-    };
-    addMessage(assistantMessage);
-    
-    // Create a partial response update handler
-    let accumulatedResponse = '';
-    const handlePartialResponse = (partialResponse: string, done: boolean, fromCache?: boolean) => {
-      accumulatedResponse = partialResponse;
-      
-      // Update assistant message with current accumulated response
-      updateMessage({
-        ...assistantMessage,
-        content: accumulatedResponse,
-        status: done ? 'complete' : 'loading',
-        fromCache: fromCache,
-        timestamp: { 
-          start: assistantMessage.timestamp?.start,
-          end: done ? Date.now() : undefined 
-        }
-      });
-    };
-    
-    try {
-      // Generate improvements
-      const { requestId, improvement, fromCache } = await ollama.improveCode(
-        content,
-        handlePartialResponse
-      );
-      
-      // Update message with completed improvements
-      updateMessage({
-        ...assistantMessage,
-        content: improvement,
-        status: 'complete',
-        requestId,
-        fromCache,
-        timestamp: { 
-          start: assistantMessage.timestamp?.start, 
-          end: Date.now() 
-        }
-      });
-    } catch (error) {
-      // Update message with error status
-      updateMessage({
-        ...assistantMessage,
-        content: 'An error occurred while improving the code.',
-        status: 'error',
-        timestamp: { 
-          start: assistantMessage.timestamp?.start, 
-          end: Date.now() 
-        }
-      });
-    }
-  }, [notebook.activeCellContent, ollama, addMessage, updateMessage]);
-  
   // Retry the last message
   const retryLastMessage = useCallback(async () => {
     // Find the last error message and its preceding user message
-    const errorMessageIndex = [...messages].reverse().findIndex(msg => msg.status === 'error');
+    const lastErrorIndex = [...messages].findIndex(msg => msg.status === 'error');
     
-    if (errorMessageIndex === -1) return;
+    if (lastErrorIndex === -1) return;
     
-    // Calculate the actual index (from the end)
-    const lastErrorIndex = messages.length - 1 - errorMessageIndex;
-    
-    // Get the error message
-    const errorMessage = messages[lastErrorIndex];
-    
-    // Find the last user message before the error
+    // Find the last user message before this error
     let lastUserMessageIndex = -1;
     for (let i = lastErrorIndex - 1; i >= 0; i--) {
       if (messages[i].role === 'user') {
@@ -447,12 +284,8 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     // Retry the operation based on the active tab
     if (activeTab === 'chat') {
       await sendChatMessage(userMessage.content);
-    } else if (activeTab === 'analyze' && notebook.activeCellContent) {
-      await analyzeCurrentCell();
-    } else if (activeTab === 'improve' && notebook.activeCellContent) {
-      await improveCurrentCell();
     }
-  }, [messages, activeTab, sendChatMessage, analyzeCurrentCell, improveCurrentCell, notebook.activeCellContent]);
+  }, [messages, activeTab, sendChatMessage, notebook.activeCellContent]);
   
   // Regenerate the last response
   const regenerateResponse = useCallback(async () => {
@@ -483,12 +316,8 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     // Regenerate based on the active tab
     if (activeTab === 'chat') {
       await sendChatMessage(userMessage.content);
-    } else if (activeTab === 'analyze' && notebook.activeCellContent) {
-      await analyzeCurrentCell();
-    } else if (activeTab === 'improve' && notebook.activeCellContent) {
-      await improveCurrentCell();
     }
-  }, [messages, activeTab, sendChatMessage, analyzeCurrentCell, improveCurrentCell, notebook.activeCellContent]);
+  }, [messages, activeTab, sendChatMessage, notebook.activeCellContent]);
   
   // Clear messages
   const clearMessages = useCallback((tabType?: TabType) => {
@@ -725,8 +554,6 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     
     // Message operations
     sendChatMessage,
-    analyzeCurrentCell,
-    improveCurrentCell,
     retryLastMessage,
     regenerateResponse,
     clearMessages,
@@ -734,6 +561,7 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     
     // Notebook operations
     refreshNotebookContent: notebook.refreshNotebookContent,
+    refreshActiveCellContent: notebook.refreshActiveCellContent,
     insertCodeCell,
     executeCodeCell,
     

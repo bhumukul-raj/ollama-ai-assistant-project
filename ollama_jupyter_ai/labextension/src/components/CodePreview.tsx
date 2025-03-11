@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCopy,
@@ -51,52 +51,14 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
   hasHistory = false
 }) => {
   const [isCopied, setIsCopied] = useState(false);
-  const [highlightedCode, setHighlightedCode] = useState<JSX.Element[]>([]);
   const [diffView, setDiffView] = useState(false);
   
-  useEffect(() => {
-    highlightCode();
-  }, [code, language, diffView]);
-  
-  const highlightCode = () => {
-    let processedCode = code;
-    const rules = languageRules[language] || [];
-    const elements: JSX.Element[] = [];
-    let lastIndex = 0;
+  // Memoized function to compute diff between original and new code
+  const computeDiff = useMemo(() => {
+    if (!originalCode) return null;
     
-    // If in diff view and we have original code, show the differences
-    if (diffView && originalCode) {
-      const diff = computeDiff(originalCode, code);
-      elements.push(...diff);
-    } else {
-      // Apply syntax highlighting rules
-      rules.forEach(({ pattern, className }) => {
-        processedCode = processedCode.replace(pattern, (match) => 
-          `<span class="jp-AIAssistant-code-${className}">${match}</span>`
-        );
-      });
-      
-      // Split by lines and create elements
-      const lines = processedCode.split('\n');
-      lines.forEach((line, index) => {
-        elements.push(
-          <div key={index} className="jp-AIAssistant-code-line">
-            <span className="jp-AIAssistant-code-line-number">{index + 1}</span>
-            <span 
-              className="jp-AIAssistant-code-line-content"
-              dangerouslySetInnerHTML={{ __html: line || ' ' }}
-            />
-          </div>
-        );
-      });
-    }
-    
-    setHighlightedCode(elements);
-  };
-  
-  const computeDiff = (oldCode: string, newCode: string): JSX.Element[] => {
-    const oldLines = oldCode.split('\n');
-    const newLines = newCode.split('\n');
+    const oldLines = originalCode.split('\n');
+    const newLines = code.split('\n');
     const elements: JSX.Element[] = [];
     
     let i = 0, j = 0;
@@ -135,7 +97,48 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
     }
     
     return elements;
-  };
+  }, [originalCode, code, diffView]);
+  
+  // Memoized syntax highlighting
+  const highlightedCode = useMemo(() => {
+    const rules = languageRules[language] || [];
+    const lines = code.split('\n');
+    const highlightedLines: JSX.Element[] = [];
+    
+    lines.forEach((line, index) => {
+      let lineContent = line;
+      let highlightedLine: JSX.Element[] = [];
+      
+      // Apply highlighting rules for this language
+      rules.forEach(rule => {
+        lineContent = lineContent.replace(rule.pattern, (match) => {
+          highlightedLine.push(
+            <span key={`${index}-${match}-${Math.random()}`} className={`jp-AIAssistant-code-${rule.className}`}>{match}</span>
+          );
+          return ''; // Remove the matched part
+        });
+      });
+      
+      // Add any remaining text without highlights
+      if (lineContent) {
+        highlightedLine.push(
+          <span key={`${index}-text-${Math.random()}`}>{lineContent}</span>
+        );
+      }
+      
+      // Add the processed line
+      highlightedLines.push(
+        <div key={`line-${index}`} className="jp-AIAssistant-code-line">
+          <span className="jp-AIAssistant-code-line-number">{index + 1}</span>
+          <span className="jp-AIAssistant-code-line-content">
+            {highlightedLine}
+          </span>
+        </div>
+      );
+    });
+    
+    return highlightedLines;
+  }, [code, language]);
   
   const handleCopy = async () => {
     try {
@@ -146,7 +149,7 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
       console.error('Failed to copy code:', error);
     }
   };
-  
+
   return (
     <div className="jp-AIAssistant-code-preview">
       <div className="jp-AIAssistant-code-preview-header">
@@ -192,23 +195,31 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
           >
             <FontAwesomeIcon icon={isCopied ? faCheck : faCopy} />
           </button>
+          
+          {onApply && (
+            <button
+              className="jp-AIAssistant-code-preview-button primary"
+              onClick={() => onApply(code)}
+              title="Apply code"
+            >
+              Apply
+            </button>
+          )}
         </div>
       </div>
       
       <div className="jp-AIAssistant-code-preview-content">
-        {highlightedCode}
+        {diffView && originalCode ? (
+          computeDiff
+        ) : (
+          <pre className="jp-AIAssistant-code">
+            {highlightedCode}
+          </pre>
+        )}
       </div>
-      
-      {onApply && (
-        <div className="jp-AIAssistant-code-preview-footer">
-          <button
-            className="jp-AIAssistant-code-preview-button primary"
-            onClick={() => onApply(code)}
-          >
-            Apply Changes
-          </button>
-        </div>
-      )}
     </div>
   );
-}; 
+};
+
+// Export a memoized version of the component to prevent unnecessary re-renders
+export default React.memo(CodePreview); 

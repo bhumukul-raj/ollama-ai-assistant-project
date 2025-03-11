@@ -49,6 +49,19 @@ const formatTimestamp = (timestamp?: number): string => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+/**
+ * TypingIndicator component to display during AI response generation
+ */
+const TypingIndicator: React.FC = () => {
+  return (
+    <div className="jp-AIAssistant-typing-indicator">
+      <span className="jp-AIAssistant-typing-dot"></span>
+      <span className="jp-AIAssistant-typing-dot"></span>
+      <span className="jp-AIAssistant-typing-dot"></span>
+    </div>
+  );
+};
+
 // Optimize the MessageList component with React.memo
 export const MessageList = React.memo<MessageListProps>(({
   messages,
@@ -204,8 +217,11 @@ export const MessageList = React.memo<MessageListProps>(({
             )}
           </div>
           <div className="jp-AIAssistant-message-text">
-            {isUser ? (
-              formatMessageWithCodeBlocks(message.content)
+            {message.role === 'assistant' && message.status === 'loading' ? (
+              <>
+                {message.content && formatMessageWithCodeBlocks(message.content)}
+                <TypingIndicator />
+              </>
             ) : (
               formatMessageWithCodeBlocks(message.content)
             )}

@@ -17,10 +17,9 @@ The AI Assistant panel consists of several components:
 ![AI Assistant Interface](../images/ai-assistant-interface.png)
 
 1. **Header**: Contains the title and model selector dropdown.
-2. **Tabs**: Switch between different modes (Chat, Analyze, Improve).
-3. **Conversation Area**: Where messages are displayed.
-4. **Input Area**: Where you type your messages.
-5. **Toolbar**: Contains buttons for actions like saving, exporting, and importing conversations.
+2. **Conversation Area**: Where messages are displayed.
+3. **Input Area**: Where you type your messages.
+4. **Toolbar**: Contains buttons for actions like saving, exporting, and importing conversations.
 
 ## Selecting a Model
 
@@ -32,9 +31,9 @@ Before you start chatting with the AI Assistant, you should select a model:
 
 The default model is "mistral", which is a good general-purpose model. For more coding-specific tasks, you might want to try "codellama" if available.
 
-## Using the Chat Mode
+## Using the Chat Interface
 
-The Chat mode allows you to have a conversation with the AI:
+The Chat interface allows you to have a conversation with the AI:
 
 1. Type a message in the input area at the bottom of the panel.
 2. Press Enter or click the Send button.
@@ -46,23 +45,19 @@ Example questions to try:
 - "Can you explain principal component analysis?"
 - "Write a function to calculate Fibonacci numbers in Python."
 
-## Analyzing Code
+## Analyzing and Improving Code
 
-The Analyze mode helps you understand the code in your notebook:
+You can use the Chat interface to analyze and improve your code:
 
-1. Switch to the "Analyze" tab.
-2. Select a code cell in your notebook.
-3. Click the "Analyze" button.
-4. The AI will explain what the code does, potential issues, and suggestions.
+1. Copy the code from your notebook cell.
+2. Paste it into the chat with a prompt like "Explain this code" or "Improve this code".
+3. The AI will analyze the code and provide explanations or suggestions for improvement.
 
-## Improving Code
-
-The Improve mode suggests improvements for your code:
-
-1. Switch to the "Improve" tab.
-2. Select a code cell in your notebook.
-3. Click the "Improve" button.
-4. The AI will suggest optimizations, better practices, or alternative approaches.
+Example prompts:
+- "What does this code do? [paste code]"
+- "Can you optimize this function? [paste code]"
+- "Explain this algorithm: [paste code]"
+- "Add error handling to this code: [paste code]"
 
 ## Managing Conversations
 
@@ -77,7 +72,5 @@ You can manage your conversations with the AI Assistant:
 
 Now that you're familiar with the basics, you might want to explore:
 
-- [Using the Chat Interface](chat-interface.md) for more advanced chat features
-- [Code Analysis](code-analysis.md) for detailed information on code analysis
-- [Code Improvement](code-improvement.md) for tips on getting better code suggestions
+- [Enhanced User Experience](enhanced-user-experience.md) for more advanced features
 - [Configuration](configuration.md) for customizing the AI Assistant 

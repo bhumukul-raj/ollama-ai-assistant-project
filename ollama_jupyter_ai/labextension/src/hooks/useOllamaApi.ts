@@ -53,34 +53,25 @@ export const useOllamaApi = (options: UseOllamaApiOptions = {}) => {
     fetchModels();
   }, [fetchModels]);
   
-  // Generate chat response
-  const generateChatResponse = useCallback(async (
-    userMessage: string,
+  // Generate a response
+  const generateResponse = useCallback(async (
+    prompt: string,
     notebookContent?: string,
-    onUpdate?: (partialResponse: string, done: boolean) => void,
-    requestId?: string
-  ): Promise<{ requestId: string; response: string; fromCache: boolean }> => {
+    onUpdate?: (partialResponse: string, done: boolean) => void
+  ): Promise<string> => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Generate a unique request ID if not provided
-      const actualRequestId = requestId || `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      
-      // Start streaming the response
+      // Call the generate response method
       const response = await ollamaService.generateResponse(
-        userMessage,
+        prompt,
         selectedModel,
         notebookContent,
-        onUpdate,
-        actualRequestId
+        onUpdate as (partialResponse: string, done: boolean, fromCache?: boolean) => void
       );
       
-      // Check if response came from cache
-      const fromCache = response.includes('__FROM_CACHE__');
-      const cleanResponse = response.replace('__FROM_CACHE__', '');
-      
-      return { requestId: actualRequestId, response: cleanResponse, fromCache: !!fromCache };
+      return response;
     } catch (err) {
       console.error('Error generating response:', err);
       setError('Failed to generate response');
@@ -90,90 +81,9 @@ export const useOllamaApi = (options: UseOllamaApiOptions = {}) => {
     }
   }, [ollamaService, selectedModel]);
   
-  // Analyze code
-  const analyzeCode = useCallback(async (
-    code: string,
-    onUpdate?: (partialResponse: string, done: boolean) => void
-  ): Promise<{ requestId: string; analysis: string; fromCache: boolean }> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Generate a unique request ID
-      const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      
-      // Call the analyze code method
-      const analysis = await ollamaService.analyzeCode(
-        code,
-        selectedModel,
-        onUpdate,
-        requestId
-      );
-      
-      // Check if response came from cache
-      const fromCache = analysis.includes('__FROM_CACHE__');
-      const cleanAnalysis = analysis.replace('__FROM_CACHE__', '');
-      
-      return { requestId, analysis: cleanAnalysis, fromCache: !!fromCache };
-    } catch (err) {
-      console.error('Error analyzing code:', err);
-      setError('Failed to analyze code');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [ollamaService, selectedModel]);
-  
-  // Improve code
-  const improveCode = useCallback(async (
-    code: string,
-    onUpdate?: (partialResponse: string, done: boolean) => void
-  ): Promise<{ requestId: string; improvement: string; fromCache: boolean }> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Generate a unique request ID
-      const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      
-      // Call the improve code method
-      const improvement = await ollamaService.suggestCodeImprovements(
-        code,
-        selectedModel,
-        onUpdate,
-        requestId
-      );
-      
-      // Check if response came from cache
-      const fromCache = improvement.includes('__FROM_CACHE__');
-      const cleanImprovement = improvement.replace('__FROM_CACHE__', '');
-      
-      return { requestId, improvement: cleanImprovement, fromCache: !!fromCache };
-    } catch (err) {
-      console.error('Error improving code:', err);
-      setError('Failed to generate code improvements');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [ollamaService, selectedModel]);
-  
-  // Cancel an ongoing request
-  const cancelRequest = useCallback((requestId?: string) => {
-    if (!requestId) {
-      // Avoid excessive logging
-      setIsLoading(false);
-      return;
-    }
-    
-    // Use minimal logging
-    try {
-      ollamaService.cancelRequest(requestId);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error canceling request');
-      setIsLoading(false);
-    }
+  // Cancel a request
+  const cancelRequest = useCallback((requestId: string): boolean => {
+    return ollamaService.cancelRequest(requestId);
   }, [ollamaService]);
   
   // Get active requests
@@ -182,15 +92,13 @@ export const useOllamaApi = (options: UseOllamaApiOptions = {}) => {
   }, [ollamaService]);
   
   return {
+    isLoading,
+    error,
     models,
     selectedModel,
     setSelectedModel,
-    isLoading,
-    error,
     fetchModels,
-    generateChatResponse,
-    analyzeCode,
-    improveCode,
+    generateResponse,
     cancelRequest,
     getActiveRequests
   };

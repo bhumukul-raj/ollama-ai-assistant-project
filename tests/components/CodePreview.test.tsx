@@ -76,7 +76,7 @@ describe('CodePreview Component', () => {
     );
     
     // Apply button should be present when onApply is provided
-    const applyButton = screen.getByText('Apply Changes');
+    const applyButton = screen.getByText('Apply');
     expect(applyButton).toBeInTheDocument();
     
     // Click the apply button

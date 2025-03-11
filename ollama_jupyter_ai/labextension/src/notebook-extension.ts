@@ -19,45 +19,14 @@ const notebookExtension: JupyterFrontEndPlugin<void> = {
   ) => {
     console.log('Ollama Jupyter AI Notebook Extension activated');
     
-    // Create a shared instance of OllamaService
+    // Initialize the Ollama service
     const ollamaService = new OllamaService();
     
-    // Add commands
-    const { commands } = app;
-    
-    // Command to analyze the current cell
-    commands.addCommand('ollama:analyze-cell', {
-      label: 'Analyze Code with Ollama AI',
-      execute: async () => {
-        const notebook = notebooks.currentWidget;
-        if (!notebook) return;
-        
-        const cell = notebook.content.activeCell;
-        if (!cell || cell.model.type !== 'code') {
-          console.log('No active code cell found');
-          return;
-        }
-        
-        // Get the cell content
-        const code = cell.model.toString();
-        if (!code.trim()) {
-          console.log('Cell is empty');
-          return;
-        }
-        
-        // Get the analysis from Ollama
-        try {
-          const analysis = await ollamaService.analyzeCode(code);
-          console.log('Analysis:', analysis);
-          
-          // Add to cell context menu for future use
-          app.contextMenu.addItem({
-            command: 'ollama:analyze-cell',
-            selector: '.jp-Notebook .jp-CodeCell'
-          });
-        } catch (error) {
-          console.error('Error analyzing code:', error);
-        }
+    // Log when notebooks change
+    notebooks.currentChanged.connect(() => {
+      const current = notebooks.currentWidget;
+      if (current) {
+        console.log('Current notebook changed:', current.title.label);
       }
     });
   }

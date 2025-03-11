@@ -22,70 +22,6 @@ export const useNotebookContent = (
   } | null>(null);
   const [hasNotebook, setHasNotebook] = useState<boolean>(false);
   
-  // Update current notebook when active notebook changes
-  useEffect(() => {
-    // Set initial notebook if available
-    if (notebooks.currentWidget) {
-      setCurrentNotebook(notebooks.currentWidget);
-      notebookService.setNotebook(notebooks.currentWidget);
-      setHasNotebook(true);
-    } else {
-      setHasNotebook(false);
-    }
-    
-    // Listen for notebook changes
-    const notebookChanged = (tracker: INotebookTracker, panel: NotebookPanel | null) => {
-      setCurrentNotebook(panel);
-      if (panel) {
-        notebookService.setNotebook(panel);
-        setHasNotebook(true);
-        refreshNotebookContent();
-      } else {
-        setHasNotebook(false);
-      }
-    };
-    
-    // Listen for active cell changes
-    const activeCellChanged = () => {
-      refreshActiveCellContent();
-    };
-    
-    // Subscribe to notebook changes
-    notebooks.currentChanged.connect(notebookChanged);
-    
-    // Subscribe to active cell changes if a notebook is active
-    if (notebooks.currentWidget) {
-      notebooks.currentWidget.content.activeCellChanged.connect(activeCellChanged);
-    }
-    
-    // Set up auto-refresh if enabled
-    let refreshTimer: number | null = null;
-    
-    if (options.autoRefresh && options.refreshInterval) {
-      refreshTimer = window.setInterval(() => {
-        refreshNotebookContent();
-        refreshActiveCellContent();
-      }, options.refreshInterval);
-    }
-    
-    // Initial content refresh
-    refreshNotebookContent();
-    refreshActiveCellContent();
-    
-    // Cleanup
-    return () => {
-      notebooks.currentChanged.disconnect(notebookChanged);
-      
-      if (notebooks.currentWidget) {
-        notebooks.currentWidget.content.activeCellChanged.disconnect(activeCellChanged);
-      }
-      
-      if (refreshTimer !== null) {
-        clearInterval(refreshTimer);
-      }
-    };
-  }, [notebooks, notebookService, options.autoRefresh, options.refreshInterval]);
-  
   // Refresh notebook content
   const refreshNotebookContent = useCallback(() => {
     if (currentNotebook && hasNotebook) {
@@ -105,18 +41,43 @@ export const useNotebookContent = (
   const refreshActiveCellContent = useCallback(() => {
     if (currentNotebook && hasNotebook) {
       try {
-        const activeCell = currentNotebook.content.activeCell;
+        // First, try to get the activeCell directly
+        let activeCell = currentNotebook.content.activeCell;
+        
+        // If no active cell, try to activate one
+        if (!activeCell) {
+          console.log('No active cell found, attempting to activate a cell...');
+          const activated = notebookService.activateCell();
+          
+          if (activated) {
+            // Try again after activation
+            activeCell = currentNotebook.content.activeCell;
+            console.log('Cell activation successful:', !!activeCell);
+          } else {
+            console.error('Failed to activate any cell');
+          }
+        }
         
         if (activeCell) {
           const activeCellIndex = currentNotebook.content.activeCellIndex;
-          const content = notebookService.getCellContent(activeCellIndex);
+          const content = activeCell.model.toString(); // Use direct model access for immediate content
           
-          setActiveCellContent({
-            content,
-            cellType: activeCell.model.type,
+          // Ensure we're getting the actual cell type and content
+          const cellType = activeCell.model.type;
+          
+          const cellContent = {
+            content: content || '',  // Ensure content is never undefined
+            cellType: cellType || 'code', // Default to code if type is missing
             index: activeCellIndex
-          });
+          };
+          
+          console.log('Updating activeCellContent with:', 
+            `type=${cellType}, index=${activeCellIndex}, contentLength=${content.length}`);
+          
+          // Set the cell content immediately
+          setActiveCellContent(cellContent);
         } else {
+          console.warn('No active cell available, setting activeCellContent to null');
           setActiveCellContent(null);
         }
       } catch (err) {
@@ -127,6 +88,126 @@ export const useNotebookContent = (
       setActiveCellContent(null);
     }
   }, [currentNotebook, notebookService, hasNotebook]);
+  
+  // Update current notebook when active notebook changes
+  useEffect(() => {
+    // Set initial notebook if available
+    if (notebooks.currentWidget) {
+      setCurrentNotebook(notebooks.currentWidget);
+      notebookService.setNotebook(notebooks.currentWidget);
+      setHasNotebook(true);
+    } else {
+      setHasNotebook(false);
+    }
+    
+    // Listen for notebook changes
+    const notebookChanged = (tracker: INotebookTracker, panel: NotebookPanel | null) => {
+      console.log('Active notebook changed:', panel ? 'New notebook selected' : 'No notebook');
+      setCurrentNotebook(panel);
+      if (panel) {
+        notebookService.setNotebook(panel);
+        setHasNotebook(true);
+        
+        // Add listeners to the new notebook
+        setupNotebookListeners(panel);
+        
+        // Refresh content after notebook change
+        setTimeout(() => {
+          refreshNotebookContent();
+          refreshActiveCellContent();
+        }, 100);
+      } else {
+        setHasNotebook(false);
+      }
+    };
+    
+    // Add listeners to notebook events
+    const setupNotebookListeners = (panel: NotebookPanel) => {
+      // Listen for active cell changes
+      panel.content.activeCellChanged.connect((_, cell) => {
+        console.log('Active cell changed:', cell ? 'New cell selected' : 'No cell');
+        setTimeout(refreshActiveCellContent, 50);
+      });
+      
+      // Listen for content changes in cells
+      try {
+        // Try to connect to the model change event safely
+        if (panel.content) {
+          // Using type assertion to bypass TypeScript error about model property
+          const notebookContent = panel.content as any;
+          if (notebookContent.model && notebookContent.model.sharedModel) {
+            notebookContent.model.sharedModel.changed.connect(() => {
+              console.log('Notebook cells changed');
+              setTimeout(() => {
+                refreshNotebookContent();
+                refreshActiveCellContent();
+              }, 50);
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error connecting to notebook model changes:', error);
+      }
+      
+      // Listen for cell execution
+      panel.sessionContext.statusChanged.connect((_, status) => {
+        if (status === 'idle') {
+          console.log('Notebook execution completed, refreshing content');
+          setTimeout(() => {
+            refreshNotebookContent();
+            refreshActiveCellContent();
+          }, 100);
+        }
+      });
+    };
+    
+    // Subscribe to notebook changes
+    const changedSignal = notebooks.currentChanged.connect(notebookChanged);
+    
+    // Add listeners to initial notebook if available
+    if (notebooks.currentWidget) {
+      setupNotebookListeners(notebooks.currentWidget);
+    }
+    
+    // Set up auto-refresh if enabled
+    let refreshTimer: number | null = null;
+    
+    if (options.autoRefresh && options.refreshInterval) {
+      refreshTimer = window.setInterval(() => {
+        if (hasNotebook) {
+          refreshNotebookContent();
+          refreshActiveCellContent();
+        }
+      }, options.refreshInterval);
+    }
+    
+    // Initial content refresh with small delay to ensure notebook is fully loaded
+    setTimeout(() => {
+      refreshNotebookContent();
+      refreshActiveCellContent();
+    }, 200);
+    
+    // Cleanup function
+    return () => {
+      // Clean up signal connections if they exist
+      if (changedSignal) {
+        try {
+          // Type cast to avoid TypeScript errors
+          const signal = changedSignal as any;
+          if (typeof signal.disconnect === 'function') {
+            signal.disconnect();
+          }
+        } catch (err) {
+          console.error('Error disconnecting from currentChanged signal:', err);
+        }
+      }
+      
+      if (refreshTimer !== null) {
+        clearInterval(refreshTimer);
+      }
+    };
+  }, [notebooks, notebookService, options.autoRefresh, options.refreshInterval, hasNotebook, 
+      refreshNotebookContent, refreshActiveCellContent]);
   
   // Insert a new cell in the notebook
   const insertCell = useCallback((

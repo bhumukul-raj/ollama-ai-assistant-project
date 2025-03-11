@@ -751,97 +751,119 @@ export class OllamaService {
    * @returns Optimized notebook content
    */
   private optimizeNotebookContent(notebookContent: string): string {
-    if (!notebookContent) return '';
+    if (!notebookContent || typeof notebookContent !== 'string') {
+      this.log('Invalid notebook content received:', notebookContent);
+      return '';
+    }
+
+    const MAX_NOTEBOOK_CONTEXT_SIZE = 4096; // Maximum size in characters
+    
+    // Log original size
+    this.log(`Original notebook content size: ${notebookContent.length} characters`);
     
     if (notebookContent.length <= MAX_NOTEBOOK_CONTEXT_SIZE) {
+      this.log('Notebook content is under size limit, no trimming needed');
       return notebookContent;
     }
     
-    this.log(`Notebook content too large (${notebookContent.length} chars), truncating...`);
-    
-    // Simple truncation strategy - truncate to max size while keeping cell boundaries
-    const cells = notebookContent.split(/--- Cell \d+\/\d+ \[.*?\] ---/);
-    let truncatedContent = '';
+    // Simple trimming strategy - just truncate to max size
+    // For more sophisticated trimming, you could split into cells and prioritize
+    let cells = notebookContent.split('```');
+    let result = '';
     let currentSize = 0;
     
-    // Add the most important cells first (usually the active and adjacent cells)
-    // This is a simple approach - a more sophisticated one would analyze content relevance
-    for (const cell of cells) {
-      if (currentSize + cell.length <= MAX_NOTEBOOK_CONTEXT_SIZE) {
-        truncatedContent += cell;
-        currentSize += cell.length;
-      } else {
-        // For the last cell that doesn't fit completely, add as much as possible
+    // Make sure we include at least one code cell
+    for (let i = 0; i < cells.length; i += 2) {
+      // Get the markdown part and the following code part (if any)
+      const mdPart = cells[i] || '';
+      const codePart = cells[i + 1] ? '```' + cells[i + 1] + '```' : '';
+      
+      // Calculate the total size of this part
+      const partSize = mdPart.length + codePart.length;
+      
+      // If adding this part would exceed the limit, partially add what we can
+      if (currentSize + partSize > MAX_NOTEBOOK_CONTEXT_SIZE) {
         const remainingSpace = MAX_NOTEBOOK_CONTEXT_SIZE - currentSize;
-        if (remainingSpace > 100) { // Only add partial content if it's substantial
-          truncatedContent += cell.substring(0, remainingSpace) + "\n[... content truncated ...]";
-        } else {
-          truncatedContent += "\n[... additional content truncated ...]";
+        if (remainingSpace > 20) {  // Only add if we have meaningful space
+          result += mdPart.substring(0, remainingSpace / 2);
+          result += "...";
         }
         break;
       }
+      
+      // Add this part to the result
+      result += mdPart + codePart;
+      currentSize += partSize;
     }
     
-    this.log(`Truncated notebook content to ${truncatedContent.length} chars`);
-    return truncatedContent;
+    this.log(`Optimized notebook content size: ${result.length} characters`);
+    return result;
   }
 
+  /**
+   * Send a request to the Ollama API with notebook context
+   * @param prompt The user's prompt
+   * @param model The model to use
+   * @param notebookContent Optional notebook content for context
+   * @param onUpdate Optional callback for streaming updates
+   * @param requestId Optional ID for this request (for cancellation)
+   * @returns The generated response
+   */
   private async sendRequestWithNotebookContext(
-    prompt: string, 
-    model: string, 
-    notebookContent: string, 
+    prompt: string,
+    model: string,
+    notebookContent: any,
     onUpdate?: (partialResponse: string, done: boolean, fromCache?: boolean) => void,
     requestId?: string
   ): Promise<string> {
-    this.log('Raw notebook content type:', typeof notebookContent);
-    
-    // Optimize large notebook content
-    const optimizedContent = this.optimizeNotebookContent(notebookContent);
-    this.log('Raw notebook content sample (optimized):', optimizedContent.slice(0, 100));
-
-    const promptWithContext = `Notebook Context:\n${optimizedContent}\n\nUser query: ${prompt}`;
-    this.log('Created prompt with notebook context');
-    
-    const result = await this.sendRequest(promptWithContext, model, true, onUpdate, requestId);
-    return result.response;
-  }
-
-  /**
-   * Analyze code for errors or issues
-   * @param code The code to analyze
-   * @param model The model to use
-   * @param onUpdate Optional callback for streaming updates
-   * @param requestId Optional ID for this request (for cancellation)
-   * @returns Analysis of the code
-   */
-  async analyzeCode(
-    code: string, 
-    model?: string, 
-    onUpdate?: (partialResponse: string, done: boolean, fromCache?: boolean) => void,
-    requestId?: string
-  ): Promise<string> {
-    const selectedModel = model || this.defaultModel;
-    const prompt = `Analyze this code and provide detailed feedback:\n\`\`\`\n${code}\n\`\`\``;
-    return this.sendRequestWithNotebookContext(prompt, selectedModel, code, onUpdate, requestId);
-  }
-
-  /**
-   * Suggest improvements for code
-   * @param code The code to improve
-   * @param model The model to use
-   * @param onUpdate Optional callback for streaming updates
-   * @param requestId Optional ID for this request (for cancellation)
-   * @returns Suggested improvements
-   */
-  async suggestCodeImprovements(
-    code: string, 
-    model?: string, 
-    onUpdate?: (partialResponse: string, done: boolean, fromCache?: boolean) => void,
-    requestId?: string
-  ): Promise<string> {
-    const selectedModel = model || this.defaultModel;
-    const prompt = `Suggest improvements for this code:\n\`\`\`\n${code}\n\`\`\``;
-    return this.sendRequestWithNotebookContext(prompt, selectedModel, code, onUpdate, requestId);
+    try {
+      // Extract content string from various formats
+      let contentString = '';
+      
+      // Handle different input types
+      if (typeof notebookContent === 'string') {
+        contentString = notebookContent;
+      } else if (notebookContent && typeof notebookContent === 'object') {
+        // Try to get content from various properties that might contain the notebook content
+        if (notebookContent.content) {
+          contentString = Array.isArray(notebookContent.content) 
+            ? notebookContent.content.join('\n') 
+            : notebookContent.content;
+        } else if (notebookContent.source) {
+          contentString = Array.isArray(notebookContent.source) 
+            ? notebookContent.source.join('\n') 
+            : notebookContent.source;
+        } else if (notebookContent.value) {
+          contentString = notebookContent.value;
+        } else if (notebookContent.text) {
+          contentString = notebookContent.text;
+        } else {
+          // If no known properties are found, try to stringify the object
+          try {
+            contentString = JSON.stringify(notebookContent, null, 2);
+          } catch (e) {
+            contentString = String(notebookContent);
+          }
+        }
+      }
+      
+      this.log(`Notebook content type: ${typeof notebookContent}, content length: ${contentString.length}`);
+      
+      // Optimize the notebook content
+      const optimizedContent = this.optimizeNotebookContent(contentString);
+      this.log(`Optimized content length: ${optimizedContent.length}`);
+      
+      // Construct a full prompt with context from the notebook
+      const fullPrompt = `Context from notebook:\n${optimizedContent}\n\nUser query: ${prompt}`;
+      this.log('Sending request with notebook context...', { prompt, model, requestId });
+      
+      // Send the request
+      const result = await this.sendRequest(fullPrompt, model, true, onUpdate, requestId);
+      return result.response;
+    } catch (error) {
+      this.log('Error in sendRequestWithNotebookContext:', error);
+      throw error;
+    }
   }
 
   /**

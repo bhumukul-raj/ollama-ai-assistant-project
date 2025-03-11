@@ -3,13 +3,14 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faRobot, 
   faBolt,
-  faCode,
-  faMagic,
   faCog,
   faSave,
   faDownload,
   faUpload,
-  faTrash
+  faTrash,
+  faList,
+  faScroll,
+  faToggleOn
 } from '@fortawesome/free-solid-svg-icons';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { INotebookTracker } from '@jupyterlab/notebook';
@@ -19,10 +20,14 @@ import MessageList from './MessageList';
 import InputArea from './InputArea';
 import ModelSelector from './ModelSelector';
 import TabNavigation from './TabNavigation';
+import ConversationList from './ConversationList';
+import NotebookConnectionHelper from './NotebookConnectionHelper';
 
 // Import context and hooks
 import { AIAssistantProvider, useAIAssistant, TabType } from '../context/AIAssistantContext';
 import { applySyntaxHighlighting, formatMessageWithCodeBlocks } from '../utils/formatUtils';
+import { debounce } from '../utils/performanceUtils';
+import ConversationStorageService, { SavedConversation } from '../services/ConversationStorageService';
 
 // Props interface
 interface AIAssistantPanelProps {
@@ -31,13 +36,11 @@ interface AIAssistantPanelProps {
 
 // Tab definitions
 const tabs: { id: TabType; label: string; icon: IconProp }[] = [
-  { id: 'chat', label: 'Chat', icon: faBolt },
-  { id: 'analyze', label: 'Analyze', icon: faCode },
-  { id: 'improve', label: 'Tools', icon: faMagic }
+  { id: 'chat', label: 'Chat', icon: faBolt }
 ];
 
 // Main component implementation
-const AIAssistantPanelContent: React.FC = () => {
+const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [isCompact, setIsCompact] = useState<boolean>(false);
@@ -61,8 +64,6 @@ const AIAssistantPanelContent: React.FC = () => {
     
     // Message operations
     sendChatMessage,
-    analyzeCurrentCell,
-    improveCurrentCell,
     retryLastMessage,
     regenerateResponse,
     clearMessages,
@@ -78,6 +79,19 @@ const AIAssistantPanelContent: React.FC = () => {
     loadConversation,
     importConversation
   } = useAIAssistant();
+  
+  // Add state for conversation management
+  const [isConversationListVisible, setIsConversationListVisible] = useState(false);
+  const [savedConversations, setSavedConversations] = useState<SavedConversation[]>([]);
+  const [conversationStorage] = useState(() => new ConversationStorageService());
+  
+  // Load saved conversations on component mount
+  useEffect(() => {
+    if (conversationStorage.isAvailable()) {
+      const conversations = conversationStorage.getAllConversations();
+      setSavedConversations(conversations);
+    }
+  }, [conversationStorage]);
   
   // Use ResizeObserver to detect panel size changes
   useEffect(() => {
@@ -100,50 +114,41 @@ const AIAssistantPanelContent: React.FC = () => {
     };
   }, []);
 
-  // Handler for chat input changes
+  // Update the localInputValue initialization to use chatInput
+  const [localInputValue, setLocalInputValue] = useState(chatInput);
+
+  // Keep localInputValue in sync with chatInput when it changes externally
+  useEffect(() => {
+    setLocalInputValue(chatInput);
+  }, [chatInput]);
+  
+  // Debounced version of the input change handler - update with a shorter delay
+  const debouncedInputChange = useCallback(
+    debounce((value: string) => {
+      setChatInput(value);
+    }, 150), // Reduced from 300ms to 150ms for better responsiveness
+    [setChatInput]
+  );
+
+  // Handle input changes - update local state immediately for visual feedback
   const handleChatInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setChatInput(e.target.value);
+    const value = e.target.value;
+    setLocalInputValue(value); // Immediate visual feedback
+    debouncedInputChange(value); // Debounced update to context state
   };
 
   // Handler for chat message submission
   const handleChatSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (chatInput.trim() === '') return;
     
-    sendChatMessage(chatInput);
+    // Use the local input value for submission
+    sendChatMessage(localInputValue);
+    
+    // Clear local input after submission
+    setLocalInputValue('');
   };
   
-  // Handler for analyze action
-  const handleAnalyze = () => {
-    if (!hasActiveNotebook || !activeCellContent) {
-      alert('Please select a notebook cell to analyze');
-      return;
-    }
-
-    analyzeCurrentCell();
-  };
-  
-  // Handler for improve action
-  const handleImprove = () => {
-    if (!hasActiveNotebook || !activeCellContent) {
-      alert('Please select a notebook cell to improve');
-      return;
-    }
-
-    if (activeCellContent.cellType !== 'code') {
-      alert('Only code cells can be improved');
-      return;
-    }
-
-    improveCurrentCell();
-  };
-  
-  // Handler for tab changes
-  const handleTabChange = useCallback((tabId: string) => {
-    setActiveTab(tabId as TabType);
-  }, [setActiveTab]);
-  
-  // Handler for model changes
+  // Handler for model change
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedModel(e.target.value);
   };
@@ -153,77 +158,119 @@ const AIAssistantPanelContent: React.FC = () => {
     setUserPreference('autoScroll', !userPreferences.autoScroll);
   };
   
-  // Handler for saving the conversation
+  // Handle conversation actions
   const handleSaveConversation = () => {
-    const id = saveConversation();
-    if (id) {
-      alert(`Conversation saved with ID: ${id}\n\nConversations are stored in your browser's localStorage and will persist between sessions. You can access them by using the import button.`);
-    } else {
-      alert('Failed to save conversation');
-    }
-  };
-  
-  // Handler for exporting the conversation
-  const handleExportConversation = (format: 'json' | 'markdown' | 'notebook') => {
-    const content = exportConversation(format);
-    if (!content) {
-      alert('No conversation to export');
+    if (!conversationStorage.isAvailable()) {
+      // TODO: Show error message that local storage is not available
       return;
     }
-
-    // Create and trigger download
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `conversation_export_${Date.now()}.${format === 'notebook' ? 'ipynb' : format}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-  
-  // Handler for importing a conversation
-  const handleImportConversation = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const content = event.target?.result as string;
-            const parsedData = JSON.parse(content);
-            
-            // Validate the data format before importing
-            if (Array.isArray(parsedData) && 
-                parsedData.length > 0 && 
-                parsedData.every(msg => 
-                  typeof msg === 'object' && 
-                  (msg.role === 'user' || msg.role === 'assistant') && 
-                  typeof msg.content === 'string')) {
-              
-              // Data is valid, import it
-              const success = importConversation(content);
-              if (success) {
-                alert('Conversation imported successfully');
-              } else {
-                alert('Failed to import conversation. Check the console for details.');
-              }
-            } else {
-              alert('Invalid conversation format. The file must contain a valid conversation JSON array.');
-            }
-    } catch (error) {
-            console.error('Error parsing JSON file:', error);
-            alert('Failed to import conversation. The file does not contain valid JSON data.');
-          }
-        };
-        reader.readAsText(file);
+    
+    // Create a title based on the first few messages
+    let title = 'Untitled Conversation';
+    if (messages.length > 0) {
+      const firstUserMessage = messages.find(m => m.role === 'user');
+      if (firstUserMessage) {
+        title = firstUserMessage.content.slice(0, 30);
+        if (firstUserMessage.content.length > 30) {
+          title += '...';
+        }
+      }
+    }
+    
+    const conversation: SavedConversation = {
+      id: '', // Will be generated by the service
+      title,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages,
+      modelName: selectedModel,
+      tabType: activeTab,
+      metadata: {
+        notebookName: hasActiveNotebook ? 'Current Notebook' : undefined
       }
     };
-    input.click();
+    
+    const id = conversationStorage.saveConversation(conversation);
+    if (id) {
+      // Refresh the conversations list
+      setSavedConversations(conversationStorage.getAllConversations());
+    } else {
+      // TODO: Show error message
+    }
+  };
+  
+  const handleLoadConversation = (id: string) => {
+    const conversation = conversationStorage.loadConversation(id);
+    if (conversation) {
+      // Clear existing messages first
+      clearMessages();
+      
+      // Use the context's methods to properly set up the conversation
+      // This is a safer approach than directly manipulating the state
+      if (conversation.messages.length > 0) {
+        // Load the messages into the context (this would need to be implemented in the context)
+        // For now, we'll just use the first user message to simulate a chat
+        const firstUserMessage = conversation.messages.find(m => m.role === 'user');
+        if (firstUserMessage) {
+          // Use sendChatMessage which is available in the context
+          sendChatMessage(firstUserMessage.content);
+        }
+      }
+      
+      // Set other properties
+      setActiveTab(conversation.tabType);
+      setSelectedModel(conversation.modelName);
+      
+      // Hide the conversation list
+      setIsConversationListVisible(false);
+    }
+  };
+  
+  const handleDeleteConversation = (id: string) => {
+    if (conversationStorage.deleteConversation(id)) {
+      // Refresh the conversations list
+      setSavedConversations(conversationStorage.getAllConversations());
+    }
+  };
+  
+  const handleExportConversation = (id: string, format: 'json' | 'markdown' | 'notebook') => {
+    const exportData = conversationStorage.exportConversation(id, format);
+    if (exportData) {
+      // Create a Blob and download
+      const blob = new Blob([exportData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      
+      // Set the appropriate file extension
+      let filename = `ollama-conversation-${new Date().toISOString().slice(0, 10)}`;
+      switch (format) {
+        case 'json':
+          filename += '.json';
+          break;
+        case 'markdown':
+          filename += '.md';
+          break;
+        case 'notebook':
+          filename += '.ipynb';
+          break;
+      }
+      
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+  
+  const handleImportConversation = () => {
+    // This is handled directly in the ConversationList component
+    // via a file input element
+  };
+  
+  const handleNewConversation = () => {
+    // Clear current conversation
+    clearMessages();
+    setIsConversationListVisible(false);
   };
   
   // Render active tab content
@@ -256,100 +303,19 @@ const AIAssistantPanelContent: React.FC = () => {
             </div>
             
             <InputArea
-              inputValue={chatInput}
+              inputValue={localInputValue}
               isLoading={isLoading}
               onInputChange={handleChatInputChange}
               onSubmit={handleChatSubmit}
-              onStopRequest={stopCurrentRequest}
+              onStopRequest={() => stopCurrentRequest()}
               onRegenerate={regenerateResponse}
               isCompact={isCompact}
             />
           </div>
         );
         
-      case 'analyze':
-        return (
-          <div className="jp-AIAssistant-conversationContainer" ref={containerRef}>
-            <div className="jp-AIAssistant-conversation">
-              {messages.length === 0 ? (
-                <div className="jp-AIAssistant-emptyState">
-                  <FontAwesomeIcon icon={faCode} className="fa-icon-lg" style={{ marginBottom: '16px' }} />
-                  <p>Analyze your notebook cell code</p>
-                  <p><small>Select a cell and click "Analyze" to get insights</small></p>
-                </div>
-              ) : (
-                <MessageList
-                  messages={messages}
-                  autoScroll={userPreferences.autoScroll}
-                  isLoading={isLoading}
-                  onRetry={retryLastMessage}
-                  onStop={stopCurrentRequest}
-                  onRegenerate={regenerateResponse}
-                  formatMessageWithCodeBlocks={formatMessageWithCodeBlocks}
-                  containerRef={containerRef}
-                  containerWidth={containerWidth}
-                  isCompact={isCompact}
-                />
-              )}
-            </div>
-            
-            <div className="jp-AIAssistant-action">
-            <button
-                className="jp-AIAssistant-action-button jp-AIAssistant-action-button-full"
-                onClick={handleAnalyze}
-                disabled={isLoading || !hasActiveNotebook || !activeCellContent}
-              >
-                {isLoading ? 'Analyzing...' : 'Analyze Current Cell'}
-            </button>
-          </div>
-          </div>
-        );
-        
-      case 'improve':
-        return (
-          <div className="jp-AIAssistant-conversationContainer" ref={containerRef}>
-            <div className="jp-AIAssistant-conversation">
-              {messages.length === 0 ? (
-                <div className="jp-AIAssistant-emptyState">
-                  <FontAwesomeIcon icon={faMagic} className="fa-icon-lg" style={{ marginBottom: '16px' }} />
-                  <p>Improve your notebook cell code</p>
-                  <p><small>Select a code cell and click "Improve" to optimize it</small></p>
-                </div>
-              ) : (
-                <MessageList
-                  messages={messages}
-                  autoScroll={userPreferences.autoScroll}
-                  isLoading={isLoading}
-                  onRetry={retryLastMessage}
-                  onStop={stopCurrentRequest}
-                  onRegenerate={regenerateResponse}
-                  formatMessageWithCodeBlocks={formatMessageWithCodeBlocks}
-                  containerRef={containerRef}
-                  containerWidth={containerWidth}
-                  isCompact={isCompact}
-                />
-        )}
-      </div>
-            
-            <div className="jp-AIAssistant-action">
-              <button
-                className="jp-AIAssistant-action-button jp-AIAssistant-action-button-full"
-                onClick={handleImprove}
-                disabled={
-                  isLoading || 
-                  !hasActiveNotebook || 
-                  !activeCellContent || 
-                  activeCellContent.cellType !== 'code'
-                }
-              >
-                {isLoading ? 'Improving...' : 'Improve Current Cell'}
-              </button>
-            </div>
-        </div>
-      );
-        
       default:
-        return null;
+        return <div>Unknown tab</div>;
     }
   }, [
     activeTab,
@@ -363,7 +329,7 @@ const AIAssistantPanelContent: React.FC = () => {
     containerRef,
     containerWidth,
     isCompact,
-    chatInput,
+    localInputValue,
     handleChatInputChange,
     handleChatSubmit
   ]);
@@ -371,105 +337,110 @@ const AIAssistantPanelContent: React.FC = () => {
   // Render main component
   return (
     <div className="jp-AIAssistant" ref={containerRef}>
-      <div className={`jp-AIAssistant-header ${isCompact ? 'jp-AIAssistant-header-compact' : ''}`}>
-        <div className="jp-AIAssistant-title">
-          <FontAwesomeIcon icon={faRobot} className="fa-icon-md" style={{ marginRight: '8px' }} />
-          Ollama AI Assistant
-        </div>
-        
-        <div className="jp-AIAssistant-scrollControl">
-          <label>
-            <input
-              type="checkbox"
-              checked={userPreferences.autoScroll}
-              onChange={toggleAutoScroll}
+      {isConversationListVisible ? (
+        <ConversationList
+          conversations={savedConversations}
+          onSelect={handleLoadConversation}
+          onDelete={handleDeleteConversation}
+          onExport={handleExportConversation}
+          onImport={handleImportConversation}
+          onNew={handleNewConversation}
+          isVisible={isConversationListVisible}
+        />
+      ) : (
+        <>
+          <div className={`jp-AIAssistant-header ${isCompact ? 'jp-AIAssistant-header-compact' : ''}`}>
+            <div className="jp-AIAssistant-title">
+              <FontAwesomeIcon icon={faRobot} className="fa-icon-md" style={{ marginRight: '8px' }} />
+              Ollama AI Assistant
+            </div>
+            
+            <div className="jp-AIAssistant-scrollControl">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={userPreferences.autoScroll}
+                  onChange={toggleAutoScroll}
+                />
+                Auto-scroll
+              </label>
+            </div>
+            
+            <ModelSelector
+              models={models}
+              selectedModel={selectedModel}
+              isLoading={isLoading}
+              onModelChange={handleModelChange}
+              onRefreshModels={() => {}}
             />
-            Auto-scroll
-          </label>
-        </div>
-        
-        <ModelSelector
-          models={models}
-          selectedModel={selectedModel}
-          isLoading={isLoading}
-          onModelChange={handleModelChange}
-          onRefreshModels={() => {}}
-        />
-      </div>
-      
-      <div className={`jp-AIAssistant-toolbar ${isCompact ? 'jp-AIAssistant-toolbar-compact' : ''}`}>
-        <TabNavigation
-          tabs={tabs}
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          isLoading={isLoading}
-          isCompact={isCompact}
-        />
-        
-        <div className="jp-AIAssistant-toolbar-actions">
-          <button
-            className="jp-AIAssistant-toolbar-button"
-            onClick={handleSaveConversation}
-            title="Save conversation"
-            disabled={messages.length === 0}
-          >
-            <FontAwesomeIcon icon={faSave} className="fa-icon-sm" />
-          </button>
-          
-          <button
-            className="jp-AIAssistant-toolbar-button"
-            onClick={() => handleExportConversation('json')}
-            title="Export conversation as JSON"
-            disabled={messages.length === 0}
-          >
-            <FontAwesomeIcon icon={faDownload} className="fa-icon-sm" />
-          </button>
-          
-          <button
-            className="jp-AIAssistant-toolbar-button"
-            onClick={handleImportConversation}
-            title="Import conversation"
-          >
-            <FontAwesomeIcon icon={faUpload} className="fa-icon-sm" />
-          </button>
-          
-          <button
-            className="jp-AIAssistant-toolbar-button"
-            onClick={() => clearMessages()}
-            title="Clear conversation"
-            disabled={messages.length === 0}
-          >
-            <FontAwesomeIcon icon={faTrash} className="fa-icon-sm" />
-          </button>
-          
-          <button
-            className="jp-AIAssistant-toolbar-button"
-            onClick={() => {}}
-            title="Settings"
-          >
-            <FontAwesomeIcon icon={faCog} className="fa-icon-sm" />
-          </button>
-        </div>
-      </div>
-
-      {renderTabContent()}
-      
-      {userPreferences.enableKeyboardShortcuts && (
-        <div className="jp-AIAssistant-keyboard-help">
-          Press Ctrl+Enter to send
           </div>
+          
+          <div className={`jp-AIAssistant-toolbar ${isCompact ? 'jp-AIAssistant-toolbar-compact' : ''}`}>
+            <TabNavigation
+              tabs={tabs}
+              activeTab={activeTab}
+              onTabChange={(tabId: string) => setActiveTab(tabId as TabType)}
+              isLoading={isLoading}
+              isCompact={isCompact}
+            />
+            
+            <div className="jp-AIAssistant-toolbar-actions">
+              <button
+                className="jp-AIAssistant-toolbar-button"
+                onClick={handleSaveConversation}
+                title="Save conversation"
+                disabled={messages.length === 0}
+              >
+                <FontAwesomeIcon icon={faSave} className="fa-icon-sm" />
+              </button>
+              
+              <button
+                className="jp-AIAssistant-toolbar-button"
+                onClick={() => setIsConversationListVisible(true)}
+                title="View saved conversations"
+              >
+                <FontAwesomeIcon icon={faList} className="fa-icon-sm" />
+              </button>
+              
+              <button
+                className="jp-AIAssistant-toolbar-button"
+                onClick={() => clearMessages()}
+                title="Clear conversation"
+                disabled={messages.length === 0}
+              >
+                <FontAwesomeIcon icon={faTrash} className="fa-icon-sm" />
+              </button>
+              
+              <button
+                className="jp-AIAssistant-toolbar-button"
+                onClick={() => setUserPreference('autoScroll', !userPreferences.autoScroll)}
+                title={userPreferences.autoScroll ? 'Disable auto-scroll' : 'Enable auto-scroll'}
+              >
+                <FontAwesomeIcon icon={userPreferences.autoScroll ? faScroll : faToggleOn} />
+              </button>
+            </div>
+          </div>
+
+          {renderTabContent()}
+          
+          {userPreferences.enableKeyboardShortcuts && (
+            <div className="jp-AIAssistant-keyboard-help">
+              Press Ctrl+Enter to send
+              </div>
+          )}
+        </>
       )}
     </div>
   );
 }; 
 
 // Wrapper component that provides the context
-export const AIAssistantPanel = React.memo<AIAssistantPanelProps>(({ notebooks }) => {
+export const AIAssistantPanel: React.FC<AIAssistantPanelProps> = ({ notebooks }) => {
   return (
     <AIAssistantProvider notebooks={notebooks}>
-      <AIAssistantPanelContent />
+      <AIAssistantPanelContent notebooks={notebooks} />
     </AIAssistantProvider>
   );
-});
+};
 
 export default AIAssistantPanel; 

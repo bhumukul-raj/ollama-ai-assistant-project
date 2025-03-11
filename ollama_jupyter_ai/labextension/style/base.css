@@ -743,14 +743,43 @@
 }
 
 .jp-AIAssistant-typing-indicator {
-  display: inline-block;
-  margin-left: 4px;
-  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem;
+  min-height: 24px;
 }
 
-.jp-AIAssistant-typing-indicator::after {
-  content: ".";
-  animation: ellipsis-dot 1.2s infinite;
+.jp-AIAssistant-typing-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background-color: var(--jp-ui-font-color2);
+  opacity: 0.7;
+  animation: jp-AIAssistant-typing-animation 1.4s infinite ease-in-out;
+}
+
+.jp-AIAssistant-typing-dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.jp-AIAssistant-typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.jp-AIAssistant-typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes jp-AIAssistant-typing-animation {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
 }
 
 /* Session management UI */
@@ -1347,4 +1376,555 @@ div.jp-AIAssistant-fullwidth {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Error boundary styles */
+.jp-AIAssistant-error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+  text-align: center;
+  background-color: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-AIAssistant-error-content {
+  max-width: 500px;
+  background-color: var(--jp-layout-color2);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.jp-AIAssistant-error-icon {
+  font-size: 2rem;
+  color: var(--jp-error-color1);
+  margin-bottom: 1rem;
+}
+
+.jp-AIAssistant-error-details {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: var(--jp-layout-color3);
+  border-radius: 4px;
+  overflow: auto;
+  max-height: 200px;
+  text-align: left;
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-code-font-size);
+  white-space: pre-wrap;
+}
+
+.jp-AIAssistant-error-message {
+  color: var(--jp-error-color1);
+  margin: 0;
+}
+
+.jp-AIAssistant-error-button {
+  background-color: var(--jp-brand-color1);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem auto 0;
+  transition: background-color 0.2s;
+}
+
+.jp-AIAssistant-error-button:hover {
+  background-color: var(--jp-brand-color0);
+}
+
+.jp-AIAssistant-error-button span {
+  margin-left: 0.5rem;
+}
+
+/* Conversation List styles */
+.jp-AIAssistant-conversations {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--jp-layout-color1);
+  animation: fade-in 0.3s ease-in-out;
+}
+
+.jp-AIAssistant-conversations-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--jp-border-color2);
+}
+
+.jp-AIAssistant-conversations-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0);
+}
+
+.jp-AIAssistant-conversations-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.jp-AIAssistant-button-small {
+  background: var(--jp-layout-color2);
+  border: 1px solid var(--jp-border-color2);
+  color: var(--jp-ui-font-color1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  transition: background-color 0.2s;
+}
+
+.jp-AIAssistant-button-small:hover {
+  background: var(--jp-layout-color3);
+}
+
+.jp-AIAssistant-button-clear-filters {
+  color: var(--jp-warn-color1);
+}
+
+.jp-AIAssistant-conversations-filters {
+  padding: 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--jp-border-color2);
+}
+
+.jp-AIAssistant-conversations-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.jp-AIAssistant-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--jp-ui-font-color2);
+  font-size: 0.9rem;
+}
+
+.jp-AIAssistant-conversations-search input {
+  width: 100%;
+  padding: 0.5rem 2rem;
+  border-radius: 4px;
+  border: 1px solid var(--jp-border-color2);
+  background-color: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color1);
+  font-size: 0.9rem;
+}
+
+.jp-AIAssistant-conversations-search input:focus {
+  outline: none;
+  border-color: var(--jp-brand-color1);
+}
+
+.jp-AIAssistant-search-clear {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--jp-ui-font-color2);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.jp-AIAssistant-conversations-sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jp-AIAssistant-conversations-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.jp-AIAssistant-tag-icon {
+  color: var(--jp-ui-font-color2);
+  font-size: 0.9rem;
+}
+
+.jp-AIAssistant-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.jp-AIAssistant-conversation-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  user-select: none;
+}
+
+.jp-AIAssistant-conversation-tag:hover {
+  opacity: 0.8;
+}
+
+.jp-AIAssistant-conversation-tag-remove {
+  margin-left: 0.25rem;
+  font-size: 0.7rem;
+}
+
+.jp-AIAssistant-conversations-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.jp-AIAssistant-no-conversations {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: var(--jp-ui-font-color2);
+  font-style: italic;
+}
+
+.jp-AIAssistant-conversation-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--jp-border-color2);
+  background-color: var(--jp-layout-color2);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.jp-AIAssistant-conversation-item:hover {
+  background-color: var(--jp-layout-color3);
+}
+
+.jp-AIAssistant-conversation-content {
+  flex: 1;
+  min-width: 0; /* Allow text to truncate */
+}
+
+.jp-AIAssistant-conversation-title {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0);
+}
+
+.jp-AIAssistant-conversation-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--jp-ui-font-color2);
+  margin-bottom: 0.5rem;
+}
+
+.jp-AIAssistant-conversation-preview {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--jp-ui-font-color1);
+  
+  /* Line clamping - the standard 'line-clamp' property doesn't exist yet,
+     so this is the most cross-browser compatible approach */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2; /* Future-proofing for potential standard property */
+  -webkit-box-orient: vertical;
+  
+  /* Fallback for browsers that don't support -webkit-line-clamp */
+  max-height: 2.6em; /* Approximately 2 lines of text */
+  position: relative;
+}
+
+.jp-AIAssistant-conversation-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.jp-AIAssistant-conversation-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-left: 0.5rem;
+}
+
+.jp-AIAssistant-button-icon {
+  background: none;
+  border: none;
+  color: var(--jp-ui-font-color2);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.jp-AIAssistant-button-icon:hover {
+  background-color: var(--jp-layout-color4);
+  color: var(--jp-ui-font-color1);
+}
+
+/* Accessibility enhancements */
+.jp-AIAssistant button:focus,
+.jp-AIAssistant input:focus,
+.jp-AIAssistant textarea:focus,
+.jp-AIAssistant select:focus {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: 2px;
+}
+
+/* High contrast mode */
+.jp-AIAssistant.high-contrast {
+  --jp-border-color1: #000;
+  --jp-border-color2: #000;
+  --jp-ui-font-color0: #000;
+  --jp-ui-font-color1: #000;
+  --jp-layout-color1: #fff;
+  --jp-layout-color2: #f8f8f8;
+  --jp-layout-color3: #eee;
+  --jp-layout-color4: #ddd;
+}
+
+.jp-AIAssistant.high-contrast .jp-AIAssistant-message {
+  border: 2px solid #000;
+}
+
+.jp-AIAssistant.high-contrast .jp-AIAssistant-message-user {
+  background-color: #ffffcc;
+}
+
+.jp-AIAssistant.high-contrast .jp-AIAssistant-message-assistant {
+  background-color: #e6f5ff;
+}
+
+/* Screen reader only text */
+.jp-AIAssistant-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Keyboard shortcuts info */
+.jp-AIAssistant-keyboard-shortcuts {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: var(--jp-layout-color2);
+  border-radius: 4px;
+}
+
+.jp-AIAssistant-keyboard-shortcuts h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.jp-AIAssistant-keyboard-shortcuts ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.jp-AIAssistant-keyboard-shortcuts kbd {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.85rem;
+  font-family: monospace;
+  line-height: 1;
+  color: var(--jp-ui-font-color0);
+  background-color: var(--jp-layout-color3);
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  margin: 0 0.1rem;
+}
+
+/* Notebook Connection Helper styles */
+.jp-AIAssistant-notebook-connection {
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.jp-AIAssistant-connection-success {
+  background-color: rgba(0, 128, 0, 0.1);
+  border: 1px solid rgba(0, 128, 0, 0.2);
+  color: var(--jp-success-color0, green);
+}
+
+.jp-AIAssistant-connection-error {
+  background-color: rgba(255, 0, 0, 0.05);
+  border: 1px solid rgba(255, 0, 0, 0.1);
+  color: var(--jp-error-color0, red);
+}
+
+.jp-AIAssistant-connection-icon {
+  font-size: 1.25rem;
+  margin-top: 0.25rem;
+}
+
+.jp-AIAssistant-connection-message {
+  flex: 1;
+}
+
+.jp-AIAssistant-connection-message p {
+  margin: 0 0 0.5rem;
+}
+
+.jp-AIAssistant-connection-message p:last-child {
+  margin-bottom: 0;
+}
+
+.jp-AIAssistant-connection-error-details {
+  color: var(--jp-ui-font-color1);
+  font-size: 0.9rem;
+}
+
+.jp-AIAssistant-connection-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.jp-AIAssistant-connection-help-text {
+  font-style: italic;
+  color: var(--jp-ui-font-color2);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.jp-AIAssistant-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+/* Notebook Connection Helper Debug Information */
+.jp-AIAssistant-connection-debug {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+  font-size: 0.9em;
+  width: 100%;
+  max-width: 100%;
+}
+
+.jp-AIAssistant-connection-debug summary {
+  cursor: pointer;
+  font-weight: bold;
+  padding: 5px;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-AIAssistant-connection-debug pre {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: var(--jp-layout-color2);
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: monospace;
+  font-size: 0.9em;
+  color: var(--jp-ui-font-color1);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Connection indicator styles */
+.jp-AIAssistant-connection-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  border-radius: 50%;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.jp-AIAssistant-connection-connected {
+  color: #28a745;
+}
+
+.jp-AIAssistant-connection-checking {
+  color: #ffc107;
+}
+
+.jp-AIAssistant-connection-disconnected {
+  color: #dc3545;
+}
+
+.jp-AIAssistant-action-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.jp-AIAssistant-action-container .jp-AIAssistant-action-button {
+  flex: 1;
+}
+
+.jp-AIAssistant-connection-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  border-radius: 50%;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.jp-AIAssistant-connection-connected {
+  color: #28a745;
+}
+
+.jp-AIAssistant-connection-checking {
+  color: #ffc107;
+}
+
+.jp-AIAssistant-connection-disconnected {
+  color: #dc3545;
 } 

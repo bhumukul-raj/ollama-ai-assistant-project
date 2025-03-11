@@ -289,12 +289,17 @@ If you encounter version conflicts:
 4. **Notebook Analysis**:
    - Ask "What does this notebook do?" to get an overview of your current notebook
    - The assistant can analyze variables, imports, and the flow of your code
+   - Simply paste your code with a prompt like "Explain this code" or "What does this do?"
 
-5. **Error Help**:
+5. **Code Improvement**:
+   - Ask for improvements by pasting your code with a prompt like "Improve this code" or "Optimize this function"
+   - The assistant will suggest optimizations, better practices, or alternative approaches
+
+6. **Error Help**:
    - Paste error messages to get troubleshooting assistance
    - The assistant can suggest fixes for common Python and data science errors
 
-6. **Data Analysis Help**:
+7. **Data Analysis Help**:
    - Ask for help with data manipulation, visualization, or statistical analysis
    - Get suggestions for the best libraries and approaches for your specific task
 

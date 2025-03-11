@@ -38,23 +38,14 @@ print(primes)
 1. Click on the "Ollama AI Assistant" icon in the right sidebar.
 2. If this is your first time using the assistant, you'll see an empty chat interface.
 
-## Step 3: Switch to Improve Mode
+## Step 3: Request Code Improvement
 
-1. At the top of the assistant panel, you'll see tabs for different modes: Chat, Analyze, and Improve.
-2. Click on the "Improve" tab to switch to code improvement mode.
+1. Select and copy the code from your notebook cell that you want to improve.
+2. In the AI Assistant panel, paste your code and add a prompt like "Please improve this code" or "Can you optimize this function?"
+3. Press Enter or click the send button to submit your request.
+4. The AI will start generating a response, which you'll see appear in the conversation area.
 
-## Step 4: Select a Code Cell
-
-1. Click on the code cell in your notebook that contains the code you want to improve.
-2. The cell should be highlighted to indicate it's selected.
-
-## Step 5: Request Code Improvement
-
-1. In the AI Assistant panel, you'll see a button labeled "Improve Current Cell".
-2. Click this button to ask the AI to analyze and improve your code.
-3. The AI will start generating a response, which you'll see appear in the conversation area.
-
-## Step 6: Review the Improvements
+## Step 4: Review the Improvements
 
 The AI will provide:
 1. An explanation of what your code does
@@ -89,39 +80,37 @@ primes = find_primes(100)
 print(primes)
 ```
 
-## Step 7: Apply the Improved Code
+## Step 5: Apply the Improved Code
 
 1. If you're satisfied with the improvements, you can copy the improved code.
 2. Replace the code in your notebook cell with the improved version.
 3. Run the cell to ensure it works as expected.
 
-## Step 8: Ask for Clarification
+## Step 6: Ask for Clarification
 
 If you don't understand certain improvements or have questions:
 
-1. Switch back to the "Chat" tab.
-2. Ask specific questions about the improvements.
-3. The AI will explain the reasoning behind the suggestions.
+1. Ask specific questions about the improvements in the chat.
+2. The AI will explain the reasoning behind the suggestions.
 
-## Step 9: Further Refinements
+## Step 7: Further Refinements
 
 You can continue to improve your code by:
 
 1. Making additional changes based on the AI's suggestions
-2. Selecting the modified cell
-3. Switching back to the "Improve" tab
-4. Clicking "Improve Current Cell" again for further refinements
+2. Copying the modified code
+3. Asking the AI for further refinements with a prompt like "Can you further improve this code?"
 
 ## Tips for Getting Better Improvements
 
-- **Be Specific**: If you have specific concerns, mention them in the Chat tab before requesting improvements
+- **Be Specific**: If you have specific concerns, mention them when requesting improvements
 - **Provide Context**: Include comments in your code explaining what it's supposed to do
 - **Start Simple**: Begin with smaller, focused code cells rather than large, complex ones
 - **Try Different Models**: Some models may provide better code suggestions than others
 
 ## Advanced: Custom Improvement Prompts
 
-For more targeted improvements, you can use the Chat tab with specific prompts:
+For more targeted improvements, you can use specific prompts:
 
 - "Optimize this code for performance: [paste code]"
 - "Make this code more readable: [paste code]"

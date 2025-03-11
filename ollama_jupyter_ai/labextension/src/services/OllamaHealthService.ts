@@ -20,7 +20,7 @@ export class OllamaHealthService {
   private maxRetries: number;
   private retryDelay: number;
   private onStatusChange?: (status: HealthCheckResult) => void;
-  private intervalId?: NodeJS.Timeout;
+  private intervalId?: any;
   private lastStatus: HealthCheckResult;
   private consecutiveFailures: number = 0;
   private readonly maxConsecutiveFailures: number = 5;
@@ -42,96 +42,118 @@ export class OllamaHealthService {
     };
   }
   
-  public async checkHealth(): Promise<HealthCheckResult> {
-    const startTime = Date.now();
-    let attempts = 0;
+  /**
+   * Implements exponential backoff strategy for retrying requests
+   * @param fn The async function to retry
+   * @param maxRetries Maximum number of retry attempts
+   * @param baseDelay Base delay in milliseconds between retries
+   * @param maxDelay Maximum delay in milliseconds
+   * @returns The result from the function or throws an error after max retries
+   */
+  private async retryWithExponentialBackoff<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = this.maxRetries,
+    baseDelay: number = this.retryDelay,
+    maxDelay: number = 30000
+  ): Promise<T> {
     let lastError: Error | null = null;
     
-    while (attempts < this.maxRetries) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        // Try to get the list of models as a health check
-        const response = await axios.get(`${this.baseUrl}/api/tags`, {
-          timeout: 5000 // 5 second timeout
-        });
-        
-        const responseTime = Date.now() - startTime;
-        const models = response.data.models.map((model: any) => model.name);
-        
-        // Reset consecutive failures on success
-        this.consecutiveFailures = 0;
-        
-        const status: HealthCheckResult = {
-          status: 'healthy',
-          message: 'Ollama service is running normally',
-          lastChecked: new Date(),
-          responseTime,
-          details: {
-            availableModels: models,
-            retryCount: attempts
-          }
-        };
-        
-        // Only notify if status changed
-        if (this.lastStatus.status !== status.status) {
-          this.onStatusChange?.(status);
-        }
-        
-        this.lastStatus = status;
-        return status;
+        return await fn();
       } catch (error) {
-        lastError = error as Error;
-        attempts++;
+        lastError = error instanceof Error ? error : new Error(String(error));
         
-        // Increment consecutive failures
-        this.consecutiveFailures++;
-        
-        // If we've hit the maximum consecutive failures, mark as degraded
-        if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
-          const status: HealthCheckResult = {
-            status: 'degraded',
-            message: 'Ollama service is experiencing persistent issues',
-            lastChecked: new Date(),
-            details: {
-              error: lastError?.message,
-              retryCount: attempts,
-              lastError: lastError?.stack
-            }
-          };
+        if (attempt < maxRetries - 1) {
+          // Calculate delay with exponential backoff and jitter
+          const exponentialDelay = Math.min(
+            maxDelay,
+            baseDelay * Math.pow(2, attempt)
+          );
           
-          if (this.lastStatus.status !== status.status) {
-            this.onStatusChange?.(status);
-          }
+          // Add jitter (±20%) to prevent synchronized retries
+          const jitter = 0.8 + Math.random() * 0.4; // 0.8-1.2 (±20%)
+          const delay = Math.floor(exponentialDelay * jitter);
           
-          this.lastStatus = status;
-          return status;
-        }
-        
-        if (attempts < this.maxRetries) {
-          const delay = Math.min(1000 * Math.pow(2, attempts), 5000); // Exponential backoff, max 5 seconds
-          await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+          console.log(`Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms delay`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }
     
-    // After all retries failed
-    const status: HealthCheckResult = {
-      status: 'unhealthy',
-      message: this.getDetailedErrorMessage(lastError),
-      lastChecked: new Date(),
-      details: {
-        error: lastError?.message,
-        retryCount: attempts,
-        lastError: lastError?.stack
+    // If we've reached this point, all retries failed
+    throw lastError || new Error('All retry attempts failed');
+  }
+  
+  public async checkHealth(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    const currentTime = new Date();
+    
+    try {
+      // Use exponential backoff for the API call
+      const models = await this.retryWithExponentialBackoff(
+        async () => {
+          const response = await axios.get(`${this.baseUrl}/api/tags`, {
+            timeout: 5000
+          });
+          return response.data.models || [];
+        }
+      );
+
+      const responseTime = Date.now() - startTime;
+      
+      // Reset consecutive failures on success
+      this.consecutiveFailures = 0;
+      
+      const status: HealthCheckResult = {
+        status: 'healthy',
+        message: 'Ollama API is responding',
+        lastChecked: currentTime,
+        responseTime,
+        details: {
+          availableModels: models.map((model: any) => model.name)
+        }
+      };
+      
+      // Notify if status changed
+      if (this.lastStatus.status !== status.status) {
+        this.onStatusChange?.(status);
       }
-    };
-    
-    // Only notify if status changed
-    if (this.lastStatus.status !== status.status) {
-      this.onStatusChange?.(status);
+      
+      this.lastStatus = status;
+      return status;
+    } catch (error) {
+      // Increment consecutive failures
+      this.consecutiveFailures++;
+      
+      let errorMessage = 'Could not connect to Ollama';
+      if (error instanceof Error) {
+        errorMessage = this.getDetailedErrorMessage(error);
+      }
+      
+      // Determine if service is degraded or unhealthy
+      const statusType = this.consecutiveFailures >= this.maxConsecutiveFailures 
+        ? 'degraded' : 'unhealthy';
+        
+      const status: HealthCheckResult = {
+        status: statusType as 'degraded' | 'unhealthy',
+        message: errorMessage,
+        lastChecked: currentTime,
+        details: {
+          error: error instanceof Error ? error.message : String(error),
+          retryCount: this.consecutiveFailures,
+          lastError: error instanceof Error ? error.stack : undefined
+        }
+      };
+      
+      // Notify if status changed
+      if (this.lastStatus.status !== status.status) {
+        this.onStatusChange?.(status);
+      }
+      
+      this.lastStatus = status;
+      return status;
     }
-    
-    this.lastStatus = status;
-    return status;
   }
   
   private getDetailedErrorMessage(error: Error | null): string {

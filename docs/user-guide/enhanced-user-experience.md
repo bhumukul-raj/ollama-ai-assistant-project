@@ -50,7 +50,7 @@ When the AI suggests changes to your existing code, you can now view a side-by-s
 
 To use the diff view:
 
-1. Send your code to the AI for improvement
+1. Send your code to the AI for improvement by pasting it with a prompt like "Improve this code"
 2. When the AI responds with changes, click the "Diff" button
 3. Review the highlighted changes (additions in green, removals in red)
 4. Click "Apply Changes" to accept the modifications

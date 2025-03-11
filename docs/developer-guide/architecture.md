@@ -43,7 +43,7 @@ The extension follows a modern React-based architecture with a clear separation 
 - **MessageList.tsx**: Displays the conversation messages
 - **InputArea.tsx**: Handles user input
 - **ModelSelector.tsx**: Manages model selection
-- **TabNavigation.tsx**: Manages tab switching between chat, analyze, and improve modes
+- **ConversationList.tsx**: Manages saved conversations
 
 #### Context Provider
 - **AIAssistantContext.tsx**: Manages application state and business logic
@@ -82,7 +82,6 @@ The application uses React Context for state management:
 - **AIAssistantContext**: Manages the main application state
 - State includes:
   - Current messages
-  - Active tab
   - Loading states
   - User preferences
   - Model information
@@ -99,15 +98,14 @@ The UI is designed to be responsive with:
 
 1. **Message Streaming**: Real-time streaming of AI responses
 2. **Context Awareness**: Understanding of notebook content
-3. **Tab Isolation**: Separate conversation contexts for different tabs
-4. **Persistence**: Local storage for saving conversations and preferences
-5. **Code Handling**: Special treatment for code blocks with syntax highlighting
+3. **Persistence**: Local storage for saving conversations and preferences
+4. **Code Handling**: Special treatment for code blocks with syntax highlighting
 
 ## Extensibility Points
 
 The architecture allows for easy extension in these areas:
 
-1. **New Tabs**: Add new specialized tabs for different functionality
+1. **Additional Features**: Add new specialized functionality
 2. **Additional Models**: Support for more Ollama models
 3. **Enhanced Formatting**: Extend message and code formatting
 4. **New Service Integrations**: Add additional AI services beyond Ollama
