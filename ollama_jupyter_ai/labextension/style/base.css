@@ -5,13 +5,13 @@
 
 /* Design system variables */
 :root {
-  --ai-assistant-bg-primary: #111827;
+  --ai-assistant-bg-primary: rgba(255, 255, 255, 0.95);
   --ai-assistant-bg-secondary: rgba(31, 41, 55, 0.8);
-  --ai-assistant-accent: #3b82f6;
+  --ai-assistant-accent: #3498db;
   --ai-assistant-accent-light: #60a5fa;
-  --ai-assistant-text-primary: #f3f4f6;
+  --ai-assistant-text-primary: #333;
   --ai-assistant-text-secondary: #9ca3af;
-  --ai-assistant-border: rgba(75, 85, 99, 0.5);
+  --ai-assistant-border: rgba(0, 0, 0, 0.1);
   --ai-assistant-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --ai-assistant-shadow-blue: 0 0 10px rgba(59, 130, 246, 0.5);
   --ai-assistant-transition: all 0.2s ease;
@@ -1930,132 +1930,260 @@ div.jp-AIAssistant-fullwidth {
 }
 
 .jp-AIAssistant-cell-button-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  position: relative;
-  z-index: 10; /* Ensure buttons appear above other cell content */
-  width: 100%; /* Take full width to center buttons */
-  margin-top: 5px; /* Add space between cell content and buttons */
+  position: absolute;
+  bottom: -28px;  /* Bring closer to cell */
+  right: 10px;
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(10px);
 }
 
-.jp-Cell-inputArea-attachments {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  margin-top: 8px;
-  margin-bottom: 4px;
+.jp-Notebook .jp-Cell.jp-mod-active .jp-AIAssistant-cell-button-wrapper {
+  opacity: 1;
+  pointer-events: auto;  /* Enable interaction when visible */
+  bottom: -32px;
 }
 
 .jp-AIAssistant-cell-buttons-container {
   display: flex;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  padding: 5px 0;
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  gap: 6px;
+  background-color: var(--ai-assistant-bg-primary);
+  border-radius: 24px;
+  padding: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--ai-assistant-border);
+  backdrop-filter: blur(8px);
+  transform-origin: bottom right;
+  transition: all 0.2s ease;
 }
 
-.jp-AIAssistant-cell-buttons-active {
-  opacity: 1;
+/* Hover effect for container */
+.jp-AIAssistant-cell-buttons-container:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25), 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
 }
 
+/* Update button styles */
 .jp-AIAssistant-cell-button {
-  background: none;
-  border: none;
-  padding: 8px 12px;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: var(--ai-assistant-text-primary);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 20px;
   transition: all 0.2s ease;
-  border-radius: 5px;
-  visibility: hidden;
+  gap: 6px;
+  font-size: 13px;
+  opacity: 0.9;
   min-width: 80px;
-  height: 32px;
-  position: relative;
-  font-size: 12px;
-  background-color: var(--jp-layout-color2);
-  border: 1px solid var(--jp-border-color1);
-}
-
-/* Show when parent has active class */
-.jp-AIAssistant-cell-button-active {
-  visibility: visible !important;
-  opacity: 0.9 !important;
-}
-
-/* Button type-specific styles */
-.jp-AIAssistant-ask-button {
-  background-color: var(--jp-brand-color3);
-  color: var(--jp-ui-inverse-font-color1);
-}
-
-.jp-AIAssistant-analyze-button {
-  background-color: var(--jp-info-color3);
-  color: var(--jp-ui-inverse-font-color1);
-}
-
-.jp-AIAssistant-improve-button {
-  background-color: var(--jp-success-color3);
-  color: var(--jp-ui-inverse-font-color1);
 }
 
 .jp-AIAssistant-cell-button:hover {
-  opacity: 1 !important;
+  background: var(--ai-assistant-bg-primary);
+  opacity: 1;
   transform: scale(1.05);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .jp-AIAssistant-cell-button:active {
-  transform: scale(0.98);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transform: scale(0.95);
 }
 
-/* Remove the hover-only visibility for all cell buttons */
-.jp-Cell-toolbar .jp-AIAssistant-cell-button {
-  /* Make visibility controlled by JS instead */
-  visibility: hidden;
-}
-
-/* Animation for the button */
-@keyframes ai-button-pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
-}
-
-.jp-AIAssistant-cell-button:hover .fa-icon-sm {
-  animation: ai-button-pulse 0.5s ease-in-out;
-}
-
-/* Add this to give a better hint about which cell is active */
-.jp-Notebook .jp-Cell.jp-mod-active .jp-AIAssistant-cell-button-wrapper {
+/* Add floating effect when active */
+.jp-AIAssistant-cell-buttons-active {
   opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
-/* Animation for the button */
-@keyframes ai-button-pulse {
+/* Add subtle pulse animation */
+@keyframes jp-AIAssistant-pulse {
   0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+  50% { transform: scale(1.05); }
   100% { transform: scale(1); }
 }
 
-/* Make buttons appear below the cell */
-.jp-Cell .jp-Cell-inputArea-attachments {
-  order: 100; /* Push to the end */
+.jp-AIAssistant-cell-button-wrapper.jp-AIAssistant-cell-buttons-active {
+  animation: jp-AIAssistant-pulse 0.6s ease;
+}
+
+.jp-AIAssistant-ask-button {
+  color: #3498db;
+}
+
+.jp-AIAssistant-ask-button:hover {
+  color: #3498db;
+}
+
+.jp-AIAssistant-analyze-button {
+  color: #2ecc71;
+}
+
+.jp-AIAssistant-analyze-button:hover {
+  color: #2ecc71;
+}
+
+.jp-AIAssistant-improve-button {
+  color: #f39c12;
+}
+
+.jp-AIAssistant-improve-button:hover {
+  color: #f39c12;
+}
+
+.jp-AIAssistant-cell-button span {
+  font-weight: 500;
 }
 
 .jp-Cell {
-  display: flex;
-  flex-direction: column;
+  position: relative;  /* Ensure relative positioning for absolute child elements */
 }
 
-/* Style the active cell indicator */
-.jp-Notebook .jp-Cell.jp-mod-active .jp-AIAssistant-cell-buttons-container {
-  border-top: 1px solid var(--jp-border-color2);
-  padding-top: 8px;
+.jp-Cell-inputArea {
+  position: relative;  /* Ensure relative positioning for absolute child elements */
+}
+
+/* Popup Panel Styles */
+.jp-AIAssistant-popup-panel {
+  position: absolute;
+  bottom: -220px;  /* Position below the buttons */
+  right: 0;
+  width: 480px;
+  max-height: 210px;
+  background: var(--ai-assistant-bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--ai-assistant-border);
+  backdrop-filter: blur(8px);
+  z-index: 19;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  pointer-events: none;
+  overflow: hidden;
+  /* Add will-change to improve performance */
+  will-change: transform, opacity, bottom;
+}
+
+.jp-AIAssistant-popup-panel.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  overflow: auto;
+}
+
+.jp-AIAssistant-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ai-assistant-border);
+  background: var(--ai-assistant-bg-primary);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.jp-AIAssistant-popup-title {
+  font-weight: 500;
+  color: var(--ai-assistant-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jp-AIAssistant-popup-close {
+  background: none;
+  border: none;
+  color: var(--ai-assistant-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.jp-AIAssistant-popup-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--ai-assistant-text-primary);
+}
+
+.jp-AIAssistant-popup-content {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  color: var(--ai-assistant-text-primary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.5;
+  /* Add better scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--ai-assistant-text-secondary) transparent;
+}
+
+.jp-AIAssistant-popup-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.jp-AIAssistant-popup-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.jp-AIAssistant-popup-content::-webkit-scrollbar-thumb {
+  background-color: var(--ai-assistant-text-secondary);
+  border-radius: 6px;
+}
+
+/* For streaming effect */
+@keyframes text-appear {
+  0% { opacity: 0; transform: translateY(2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.jp-AIAssistant-popup-content p {
+  animation: text-appear 0.2s ease-in-out;
+  margin-bottom: 8px;
+}
+
+/* Loading styles */
+.jp-AIAssistant-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  color: var(--ai-assistant-text-secondary);
+  height: 100%;
+}
+
+.jp-AIAssistant-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: var(--ai-assistant-accent);
+  animation: jp-AIAssistant-spin 1s linear infinite;
+}
+
+@keyframes jp-AIAssistant-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Ensure animation performance */
+.jp-AIAssistant-cell-buttons-container,
+.jp-AIAssistant-cell-button,
+.jp-AIAssistant-popup-panel {
+  will-change: transform, opacity;
 } 
