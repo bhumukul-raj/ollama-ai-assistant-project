@@ -1,2 +1,9 @@
-/* Styles for the Ollama Jupyter AI extension */
+/**
+ * index.css
+ * 
+ * Entry point stylesheet for the Ollama Jupyter AI extension.
+ * This file imports the main base.css stylesheet that contains
+ * all the detailed styling for the extension components.
+ */
+
 @import url('./base.css'); 

@@ -1,5 +1,34 @@
+/**
+ * @file OllamaService.ts
+ * @description Core service for interacting with the Ollama API to generate responses 
+ * using local large language models. This service handles all communication with the 
+ * Ollama API server, including model management, request handling, response caching,
+ * streaming responses, and error handling.
+ * 
+ * Key features:
+ * - Communicates with the Ollama API to generate text responses
+ * - Manages model selection and retrieval of available models
+ * - Implements response caching for performance optimization
+ * - Supports streaming responses for real-time feedback
+ * - Handles request cancellation for long-running generations
+ * - Provides notebook context integration for relevant responses
+ * - Implements error handling and retry mechanisms
+ * 
+ * This service is the foundation for AI assistant capabilities in the application,
+ * acting as the bridge between the UI and the local Ollama instance.
+ */
 import axios from 'axios';
 
+/**
+ * Interface representing the response from the Ollama API
+ * 
+ * @interface OllamaResponse
+ * @property {string} model - The name of the model that generated the response
+ * @property {string} created_at - ISO timestamp when the response was generated
+ * @property {string} response - The text response from the model
+ * @property {number[]} context - Token context used by the model
+ * @property {boolean} done - Whether the response generation is complete
+ */
 interface OllamaResponse {
   model: string;
   created_at: string;
@@ -8,13 +37,28 @@ interface OllamaResponse {
   done: boolean;
 }
 
+/**
+ * Interface representing metadata for an Ollama model
+ * 
+ * @interface OllamaModel
+ * @property {string} name - The name of the model
+ * @property {string} modified_at - ISO timestamp when the model was last modified
+ * @property {number} size - Size of the model in bytes
+ */
 interface OllamaModel {
   name: string;
   modified_at: string;
   size: number;
 }
 
-// Cache interface for storing responses
+/**
+ * Interface for cached response entries
+ * 
+ * @interface CacheEntry
+ * @property {string} response - The cached response text
+ * @property {number} timestamp - When the response was cached (timestamp)
+ * @property {number} expiresAt - When the cache entry expires (timestamp)
+ */
 interface CacheEntry {
   response: string;
   timestamp: number;
@@ -24,7 +68,16 @@ interface CacheEntry {
 // Maximum size for notebook context
 const MAX_NOTEBOOK_CONTEXT_SIZE = 5000;
 
-// New persistent storage interface
+/**
+ * Interface for persistent storage of cached responses
+ * 
+ * @interface OllamaStorageService
+ * @property {Function} saveCache - Saves a cache entry to storage
+ * @property {Function} getCache - Retrieves a cache entry from storage
+ * @property {Function} getAllCacheKeys - Gets all cache keys in storage
+ * @property {Function} clearCache - Clears all cached entries
+ * @property {Function} isAvailable - Checks if storage is available
+ */
 interface OllamaStorageService {
   saveCache(key: string, value: CacheEntry): void;
   getCache(key: string): CacheEntry | null;
@@ -33,7 +86,17 @@ interface OllamaStorageService {
   isAvailable(): boolean;
 }
 
-// New service options interface
+/**
+ * Configuration options for the OllamaService
+ * 
+ * @interface OllamaServiceOptions
+ * @property {string} [baseUrl] - Base URL for the Ollama API
+ * @property {string} [defaultModel] - Default model to use for requests
+ * @property {number} [cacheLifetime] - How long to keep cached responses (ms)
+ * @property {number} [maxCacheSize] - Maximum number of cached responses
+ * @property {boolean} [persistCache] - Whether to persist cache in localStorage
+ * @property {boolean} [debugEnabled] - Whether to enable debug logging
+ */
 interface OllamaServiceOptions {
   baseUrl?: string;
   defaultModel?: string;
@@ -43,14 +106,19 @@ interface OllamaServiceOptions {
   debugEnabled?: boolean;
 }
 
-// Implement a local storage-based persistent cache
+/**
+ * LocalStorage-based implementation of OllamaStorageService
+ * 
+ * Provides persistent caching of responses using browser localStorage.
+ * Includes methods for managing cache entries, expiration, and cleanup.
+ */
 class LocalStorageCacheService implements OllamaStorageService {
   private readonly prefix = 'ollama_cache_';
-  
+
   constructor() {
     this.cleanupExpiredEntries();
   }
-  
+
   public saveCache(key: string, value: CacheEntry): void {
     try {
       localStorage.setItem(this.prefix + key, JSON.stringify(value));
@@ -59,27 +127,27 @@ class LocalStorageCacheService implements OllamaStorageService {
       this.pruneCache(); // Try to make space
     }
   }
-  
+
   public getCache(key: string): CacheEntry | null {
     try {
       const cached = localStorage.getItem(this.prefix + key);
       if (!cached) return null;
-      
+
       const entry = JSON.parse(cached) as CacheEntry;
-      
+
       // Check if entry has expired
       if (entry.expiresAt < Date.now()) {
         localStorage.removeItem(this.prefix + key);
         return null;
       }
-      
+
       return entry;
     } catch (error) {
       console.error('Failed to retrieve cache from localStorage:', error);
       return null;
     }
   }
-  
+
   public getAllCacheKeys(): string[] {
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -90,7 +158,7 @@ class LocalStorageCacheService implements OllamaStorageService {
     }
     return keys;
   }
-  
+
   public clearCache(): void {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -99,10 +167,10 @@ class LocalStorageCacheService implements OllamaStorageService {
         keysToRemove.push(key);
       }
     }
-    
+
     keysToRemove.forEach(key => localStorage.removeItem(key));
   }
-  
+
   // Check if local storage is available
   public isAvailable(): boolean {
     try {
@@ -114,12 +182,12 @@ class LocalStorageCacheService implements OllamaStorageService {
       return false;
     }
   }
-  
+
   // Remove expired entries to free up space
   private cleanupExpiredEntries(): void {
     const now = Date.now();
     const keysToRemove: string[] = [];
-    
+
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith(this.prefix)) {
@@ -134,16 +202,16 @@ class LocalStorageCacheService implements OllamaStorageService {
         }
       }
     }
-    
+
     keysToRemove.forEach(key => localStorage.removeItem(key));
   }
-  
+
   // Remove oldest entries when we're out of space
   private pruneCache(): void {
     try {
       // Get all cache entries with timestamps
       const entries: { key: string; timestamp: number }[] = [];
-      
+
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith(this.prefix)) {
@@ -156,10 +224,10 @@ class LocalStorageCacheService implements OllamaStorageService {
           }
         }
       }
-      
+
       // Sort by timestamp (oldest first)
       entries.sort((a, b) => a.timestamp - b.timestamp);
-      
+
       // Remove oldest 20% of entries
       const removeCount = Math.max(1, Math.ceil(entries.length * 0.2));
       entries.slice(0, removeCount).forEach(entry => {
@@ -171,7 +239,12 @@ class LocalStorageCacheService implements OllamaStorageService {
   }
 }
 
-// Add custom error types
+/**
+ * Base error class for Ollama-related errors
+ * 
+ * Extends the standard Error class to provide specific error handling
+ * for Ollama API operations.
+ */
 export class OllamaError extends Error {
   constructor(message: string, public code?: string) {
     super(message);
@@ -179,6 +252,11 @@ export class OllamaError extends Error {
   }
 }
 
+/**
+ * Error class for Ollama connection issues
+ * 
+ * Used when the service cannot connect to the Ollama API server.
+ */
 export class OllamaConnectionError extends OllamaError {
   constructor(message: string) {
     super(message, 'CONNECTION_ERROR');
@@ -186,6 +264,11 @@ export class OllamaConnectionError extends OllamaError {
   }
 }
 
+/**
+ * Error class for Ollama request timeouts
+ * 
+ * Used when requests to the Ollama API time out.
+ */
 export class OllamaTimeoutError extends OllamaError {
   constructor(message: string) {
     super(message, 'TIMEOUT_ERROR');
@@ -193,7 +276,20 @@ export class OllamaTimeoutError extends OllamaError {
   }
 }
 
-// Enhanced OllamaService class
+/**
+ * Service for interacting with the Ollama API
+ * 
+ * The OllamaService is the primary interface between the application and the
+ * local Ollama instance. It handles all API communication, including:
+ * 
+ * - Fetching available models from the Ollama API
+ * - Generating text responses from language models
+ * - Caching responses for improved performance
+ * - Streaming responses for real-time feedback
+ * - Managing request cancellation
+ * - Optimizing notebook context for relevant responses
+ * - Error handling and recovery
+ */
 export class OllamaService {
   private baseUrl: string;
   private defaultModel: string;
@@ -204,14 +300,14 @@ export class OllamaService {
   private storageService: OllamaStorageService | null = null;
   private maxCacheSize: number;
   private useTokenStreaming: boolean = true;
-  
+
   constructor(baseUrl: string = 'http://localhost:11434', defaultModel: string = 'mistral', options?: OllamaServiceOptions) {
     this.baseUrl = options?.baseUrl || baseUrl;
     this.defaultModel = options?.defaultModel || defaultModel;
     this.cacheTTL = options?.cacheLifetime || 1000 * 60 * 30;
     this.maxCacheSize = options?.maxCacheSize || 100;
     this.debugEnabled = options?.debugEnabled ?? true;
-    
+
     // Initialize persistent storage if requested
     if (options?.persistCache) {
       const storageService = new LocalStorageCacheService();
@@ -222,7 +318,7 @@ export class OllamaService {
         this.log('Persistent cache requested but localStorage is not available');
       }
     }
-    
+
     this.log('OllamaService initialized with base URL:', this.baseUrl);
     this.log('Default model set to:', this.defaultModel);
   }
@@ -243,21 +339,21 @@ export class OllamaService {
   async getAvailableModels(): Promise<string[]> {
     try {
       this.log('Fetching available models');
-      
+
       const response = await axios.get<{ models: OllamaModel[] }>(`${this.baseUrl}/api/tags`, {
         timeout: 5000 // 5 second timeout
       });
-      
+
       if (!response.data || !Array.isArray(response.data.models)) {
         throw new OllamaError('Invalid response format from Ollama API');
       }
-      
+
       const models = response.data.models.map(model => model.name);
       this.log('Found models:', models);
       return models;
     } catch (error) {
       this.log('Error fetching models:', error);
-      
+
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNREFUSED') {
           throw new OllamaConnectionError('Could not connect to Ollama. Please make sure it is running on ' + this.baseUrl);
@@ -269,25 +365,25 @@ export class OllamaService {
           throw new OllamaError(`Ollama API error: ${error.response.status} - ${error.response.statusText}`);
         }
       }
-      
+
       throw new OllamaError('Failed to fetch models from Ollama: ' + (error instanceof Error ? error.message : String(error)));
     }
   }
-  
+
   /**
    * Get the default model
    */
   getDefaultModel(): string {
     return this.defaultModel;
   }
-  
+
   /**
    * Set the default model
    */
   setDefaultModel(model: string): void {
     this.defaultModel = model;
   }
-  
+
   /**
    * Generate a cache key from the prompt and model
    */
@@ -295,45 +391,45 @@ export class OllamaService {
     // Simple hashing function for the cache key
     return `${model}_${this.hashString(prompt)}`;
   }
-  
+
   /**
    * Hash a string to create a shorter key
    */
   private hashString(str: string): string {
     let hash = 0;
     if (str.length === 0) return hash.toString();
-    
+
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
       hash = hash & hash; // Convert to 32bit integer
     }
-    
+
     return hash.toString(16); // Convert to hex string
   }
-  
+
   /**
    * Check if we have a cached response
    */
   private getCachedResponse(prompt: string, model: string): { response: string, fromCache: boolean } | null {
     const cacheKey = this.getCacheKey(prompt, model);
-    
+
     // First check in-memory cache
     const memoryCached = this.responseCache.get(cacheKey);
     if (memoryCached) {
       const now = Date.now();
       if (memoryCached.expiresAt > now) {
         this.log('Cache hit (memory):', cacheKey);
-        return { 
-          response: memoryCached.response + '__FROM_CACHE__', 
-          fromCache: true 
+        return {
+          response: memoryCached.response + '__FROM_CACHE__',
+          fromCache: true
         };
       } else {
         // Expired entry
         this.responseCache.delete(cacheKey);
       }
     }
-    
+
     // Then check persistent storage if available
     if (this.storageService) {
       const storageCached = this.storageService.getCache(cacheKey);
@@ -341,72 +437,72 @@ export class OllamaService {
         // Add to in-memory cache for faster access next time
         this.responseCache.set(cacheKey, storageCached);
         this.log('Cache hit (storage):', cacheKey);
-        return { 
-          response: storageCached.response + '__FROM_CACHE__', 
-          fromCache: true 
+        return {
+          response: storageCached.response + '__FROM_CACHE__',
+          fromCache: true
         };
       }
     }
-    
+
     return null;
   }
-  
+
   /**
    * Store a response in the cache
    */
   private cacheResponse(prompt: string, model: string, response: string): void {
     const cacheKey = this.getCacheKey(prompt, model);
     const now = Date.now();
-    
+
     const cacheEntry: CacheEntry = {
       response,
       timestamp: now,
       expiresAt: now + this.cacheTTL
     };
-    
+
     // Add to in-memory cache
     this.responseCache.set(cacheKey, cacheEntry);
-    
+
     // Add to persistent storage if available
     if (this.storageService) {
       this.storageService.saveCache(cacheKey, cacheEntry);
     }
-    
+
     // Ensure cache doesn't grow too large
     this.enforceMemoryCacheLimit();
-    
+
     this.log('Cached response for:', cacheKey);
   }
-  
+
   /**
    * Limit the in-memory cache size by removing oldest entries
    */
   private enforceMemoryCacheLimit(): void {
     if (this.responseCache.size <= this.maxCacheSize) return;
-    
+
     // Sort entries by timestamp (oldest first)
     const entries = Array.from(this.responseCache.entries())
       .sort((a, b) => a[1].timestamp - b[1].timestamp);
-    
+
     // Remove oldest entries until we're under the limit
     const entriesToRemove = entries.slice(0, entries.length - this.maxCacheSize);
     for (const [key] of entriesToRemove) {
       this.responseCache.delete(key);
     }
-    
+
     this.log(`Removed ${entriesToRemove.length} old entries from memory cache`);
   }
-  
+
   /**
    * Clear the cache (both in-memory and persistent)
    */
   public clearCache(): void {
     this.responseCache.clear();
-    
+
     if (this.storageService) {
       this.storageService.clearCache();
     }
-    
+
     this.log('Cache cleared');
   }
 
@@ -415,31 +511,31 @@ export class OllamaService {
    */
   cancelRequest(requestId: string): boolean {
     console.log(`OllamaService: Attempting to cancel request ${requestId}`);
-    
+
     const controller = this.activeRequests.get(requestId);
-    
+
     if (controller) {
       try {
         console.log(`OllamaService: AbortController found for ${requestId}, sending abort signal...`);
         // Force immediate abort of the fetch request
         controller.abort();
         this.activeRequests.delete(requestId);
-        
+
         // Also send a direct cancellation request to Ollama's API
         this.sendCancellationRequest(requestId)
           .then(() => console.log(`Direct cancellation request sent to Ollama for ${requestId}`))
           .catch(err => console.error(`Failed to send direct cancellation to Ollama: ${err}`));
-        
+
         console.log(`Request ${requestId} canceled successfully`);
         return true;
       } catch (error) {
         console.error(`OllamaService: Error canceling request ${requestId}:`, error);
         // Still remove from active requests to avoid hanging requests
-        this.activeRequests.delete(requestId); 
+        this.activeRequests.delete(requestId);
         return false;
       }
     }
-    
+
     console.warn(`OllamaService: Request ${requestId} not found for cancellation`);
     return false;
   }
@@ -453,7 +549,7 @@ export class OllamaService {
       // Create a new AbortController for the cancellation request itself
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-      
+
       // Attempt to send a POST request to Ollama's cancellation endpoint
       // This is a more direct approach to ensure the generation stops
       await fetch(`${this.baseUrl}/api/cancel`, {
@@ -464,7 +560,7 @@ export class OllamaService {
         body: JSON.stringify({ request_id: requestId }),
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
       this.log(`Direct cancellation request for ${requestId} completed`);
     } catch (error) {
@@ -478,17 +574,17 @@ export class OllamaService {
    */
   private handleStreamCancellation(requestId: string, controller: AbortController, fullResponseText: string, onUpdate?: (partialResponse: string, done: boolean, fromCache?: boolean) => void): void {
     this.log(`Request ${requestId} was cancelled during streaming`);
-    
+
     const responseWithCancellation = fullResponseText + '\n\n[Generation stopped by user]';
-    
+
     // If we have an update callback, call it to indicate cancellation
     if (onUpdate) {
       onUpdate(responseWithCancellation, true, false);
     }
-    
+
     // Cache the partial response with cancellation message
     this.cacheResponse(requestId, this.defaultModel, responseWithCancellation);
-    
+
     // Remove the active request
     this.activeRequests.delete(requestId);
   }
@@ -497,8 +593,8 @@ export class OllamaService {
    * Send a request to Ollama with retry logic for transient failures
    */
   private async sendRequest(
-    prompt: string, 
-    model: string, 
+    prompt: string,
+    model: string,
     includeNotebookContext: boolean = false,
     onUpdate?: (partialResponse: string, done: boolean, fromCache?: boolean) => void,
     requestId?: string,
@@ -544,7 +640,7 @@ export class OllamaService {
     while (attempt < retryCount) {
       try {
         const requestStartTime = Date.now();
-        
+
         if (onUpdate) {
           return await this.handleStreamingRequest(
             fullUrl,
@@ -567,17 +663,17 @@ export class OllamaService {
         }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         // Don't retry if request was cancelled
         if (error instanceof Error && error.name === 'AbortError') {
           throw error;
         }
-        
+
         // Don't retry if it's a non-transient error
         if (axios.isAxiosError(error) && error.response && error.response.status >= 400 && error.response.status < 500) {
           throw new OllamaError(`Ollama API error: ${error.response.status} - ${error.response.statusText}`);
         }
-        
+
         attempt++;
         if (attempt < retryCount) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5 seconds
@@ -631,11 +727,11 @@ export class OllamaService {
     while (!cancelled) {
       try {
         const { done, value } = await reader.read();
-        
+
         if (cancelled) {
           break;
         }
-        
+
         if (done) {
           onUpdate(fullResponseText, true, false);
           this.cacheResponse(prompt, model, fullResponseText);
@@ -647,7 +743,7 @@ export class OllamaService {
 
         const chunk = decoder.decode(value, { stream: true });
         const lines = chunk.split('\n').filter(line => line.trim());
-        
+
         for (const line of lines) {
           try {
             const jsonResponse = JSON.parse(line) as OllamaResponse;
@@ -666,7 +762,7 @@ export class OllamaService {
         throw error;
       }
     }
-    
+
     return { response: fullResponseText, fromCache: false };
   }
 
@@ -695,7 +791,7 @@ export class OllamaService {
     const responseText = await response.text();
     const lines = responseText.trim().split('\n');
     let fullResponseText = '';
-    
+
     for (const line of lines) {
       try {
         const jsonResponse = JSON.parse(line) as OllamaResponse;
@@ -712,11 +808,11 @@ export class OllamaService {
     }
 
     this.cacheResponse(prompt, model, fullResponseText);
-    
+
     if (requestId) {
       this.activeRequests.delete(requestId);
     }
-    
+
     return { response: fullResponseText, fromCache: false };
   }
 
@@ -730,7 +826,7 @@ export class OllamaService {
    * @returns The generated response text
    */
   async generateResponse(
-    prompt: string, 
+    prompt: string,
     model?: string,
     notebookContent?: string,
     onUpdate?: (partialResponse: string, done: boolean, fromCache?: boolean) => void,
@@ -739,7 +835,7 @@ export class OllamaService {
     const selectedModel = model || this.defaultModel;
     this.log('Generating response for prompt:', prompt);
     this.log('Using model:', selectedModel);
-    
+
     // For chat messages, we don't need notebook context
     const result = await this.sendRequest(prompt, selectedModel, false, onUpdate, requestId);
     return result.response;
@@ -757,30 +853,30 @@ export class OllamaService {
     }
 
     const MAX_NOTEBOOK_CONTEXT_SIZE = 4096; // Maximum size in characters
-    
+
     // Log original size
     this.log(`Original notebook content size: ${notebookContent.length} characters`);
-    
+
     if (notebookContent.length <= MAX_NOTEBOOK_CONTEXT_SIZE) {
       this.log('Notebook content is under size limit, no trimming needed');
       return notebookContent;
     }
-    
+
     // Simple trimming strategy - just truncate to max size
     // For more sophisticated trimming, you could split into cells and prioritize
     let cells = notebookContent.split('```');
     let result = '';
     let currentSize = 0;
-    
+
     // Make sure we include at least one code cell
     for (let i = 0; i < cells.length; i += 2) {
       // Get the markdown part and the following code part (if any)
       const mdPart = cells[i] || '';
       const codePart = cells[i + 1] ? '```' + cells[i + 1] + '```' : '';
-      
+
       // Calculate the total size of this part
       const partSize = mdPart.length + codePart.length;
-      
+
       // If adding this part would exceed the limit, partially add what we can
       if (currentSize + partSize > MAX_NOTEBOOK_CONTEXT_SIZE) {
         const remainingSpace = MAX_NOTEBOOK_CONTEXT_SIZE - currentSize;
@@ -790,12 +886,12 @@ export class OllamaService {
         }
         break;
       }
-      
+
       // Add this part to the result
       result += mdPart + codePart;
       currentSize += partSize;
     }
-    
+
     this.log(`Optimized notebook content size: ${result.length} characters`);
     return result;
   }
@@ -819,19 +915,19 @@ export class OllamaService {
     try {
       // Extract content string from various formats
       let contentString = '';
-      
+
       // Handle different input types
       if (typeof notebookContent === 'string') {
         contentString = notebookContent;
       } else if (notebookContent && typeof notebookContent === 'object') {
         // Try to get content from various properties that might contain the notebook content
         if (notebookContent.content) {
-          contentString = Array.isArray(notebookContent.content) 
-            ? notebookContent.content.join('\n') 
+          contentString = Array.isArray(notebookContent.content)
+            ? notebookContent.content.join('\n')
             : notebookContent.content;
         } else if (notebookContent.source) {
-          contentString = Array.isArray(notebookContent.source) 
-            ? notebookContent.source.join('\n') 
+          contentString = Array.isArray(notebookContent.source)
+            ? notebookContent.source.join('\n')
             : notebookContent.source;
         } else if (notebookContent.value) {
           contentString = notebookContent.value;
@@ -846,17 +942,17 @@ export class OllamaService {
           }
         }
       }
-      
+
       this.log(`Notebook content type: ${typeof notebookContent}, content length: ${contentString.length}`);
-      
+
       // Optimize the notebook content
       const optimizedContent = this.optimizeNotebookContent(contentString);
       this.log(`Optimized content length: ${optimizedContent.length}`);
-      
+
       // Construct a full prompt with context from the notebook
       const fullPrompt = `Context from notebook:\n${optimizedContent}\n\nUser query: ${prompt}`;
       this.log('Sending request with notebook context...', { prompt, model, requestId });
-      
+
       // Send the request
       const result = await this.sendRequest(fullPrompt, model, true, onUpdate, requestId);
       return result.response;

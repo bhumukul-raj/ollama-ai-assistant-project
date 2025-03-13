@@ -1,15 +1,36 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+/**
+ * @file CellToolbarButton.tsx
+ * @description This file contains the CellToolbarButton component which adds AI-powered 
+ * capabilities directly to Jupyter notebook cells. It provides buttons for asking questions 
+ * about code, analyzing code, and suggesting improvements, all powered by the Ollama AI service.
+ * The component manages its own state, caches responses, and renders popup panels with AI-generated content.
+ */
+import React, { useState, useEffect, useRef, useCallback, useReducer } from 'react';
 import { ReactWidget } from '@jupyterlab/apputils';
 import { Cell, ICellModel, CodeCell } from '@jupyterlab/cells';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faLightbulb, faQuestion, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faLightbulb, faQuestion, faTimes, faCopy } from '@fortawesome/free-solid-svg-icons';
 import { Message } from '@lumino/messaging';
 import { OllamaService } from '../services/OllamaService';
 import { IOutput, IStream, IError, IExecuteResult, IDisplayData } from '@jupyterlab/nbformat';
+import { formatMessageWithCodeBlocks } from '../utils/formatUtils';
 
-// Define action types for the buttons
+/**
+ * Action types that can be performed on a cell.
+ * - 'ask': Ask a question about the code in the cell
+ * - 'analyze': Get a detailed analysis of the code
+ * - 'improve': Get suggestions for improving the code
+ */
 export type ActionType = 'ask' | 'analyze' | 'improve';
 
+/**
+ * Props for the CellToolbarButton component.
+ * 
+ * @interface CellToolbarButtonProps
+ * @property {Cell<ICellModel>} cell - The Jupyter notebook cell to attach the button to
+ * @property {(actionType: ActionType) => void} onClick - Callback function triggered when a button is clicked
+ * @property {boolean} [isActive=false] - Whether the button is currently active/visible
+ */
 interface CellToolbarButtonProps {
   cell: Cell<ICellModel>;
   onClick: (actionType: ActionType) => void;
@@ -25,23 +46,104 @@ const pendingRequests = new Map<string, boolean>();
 // Initialize Ollama service
 const ollamaService = new OllamaService();
 
-const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, isActive = false }) => {
-  console.log('[Ollama Debug] Rendering CellToolbarButton component, active:', isActive);
+/**
+ * State interface for panel management.
+ * 
+ * @interface PanelState
+ * @property {ActionType[]} activePanels - Array of currently active action panels
+ * @property {Record<ActionType, boolean>} loadingStates - Loading state for each action type
+ * @property {Record<ActionType, string>} responses - AI-generated responses for each action type
+ */
+interface PanelState {
+  activePanels: ActionType[];
+  loadingStates: Record<ActionType, boolean>;
+  responses: Record<ActionType, string>;
+}
 
-  // State for active popup panels
-  const [activePanels, setActivePanels] = useState<ActionType[]>([]);
-  const [loadingStates, setLoadingStates] = useState<Record<ActionType, boolean>>({
+/**
+ * Union type for panel state actions.
+ * Represents the different ways the panel state can be modified.
+ */
+type PanelAction =
+  | { type: 'TOGGLE_PANEL'; payload: ActionType }
+  | { type: 'CLOSE_ALL_PANELS' }
+  | { type: 'SET_LOADING'; payload: { actionType: ActionType; isLoading: boolean } }
+  | { type: 'SET_RESPONSE'; payload: { actionType: ActionType; response: string } }
+  | { type: 'RESTORE_CACHE'; payload: Record<ActionType, string> };
+
+/**
+ * Initial state for the panel reducer.
+ */
+const initialPanelState: PanelState = {
+  activePanels: [],
+  loadingStates: {
     ask: false,
     analyze: false,
     improve: false
-  });
-  const [responses, setResponses] = useState<Record<ActionType, string>>({
+  },
+  responses: {
     ask: '',
     analyze: '',
     improve: ''
-  });
+  }
+};
 
-  // Refs to track panel heights for stacking
+function panelReducer(state: PanelState, action: PanelAction): PanelState {
+  switch (action.type) {
+    case 'TOGGLE_PANEL': {
+      const isActive = state.activePanels.includes(action.payload);
+      return {
+        ...state,
+        activePanels: isActive
+          ? state.activePanels.filter(panel => panel !== action.payload)
+          : [...state.activePanels, action.payload]
+      };
+    }
+    case 'CLOSE_ALL_PANELS':
+      return {
+        ...state,
+        activePanels: []
+      };
+    case 'SET_LOADING':
+      return {
+        ...state,
+        loadingStates: {
+          ...state.loadingStates,
+          [action.payload.actionType]: action.payload.isLoading
+        }
+      };
+    case 'SET_RESPONSE':
+      return {
+        ...state,
+        responses: {
+          ...state.responses,
+          [action.payload.actionType]: action.payload.response
+        }
+      };
+    case 'RESTORE_CACHE':
+      // Only update changed responses to prevent unnecessary rerenders
+      const newResponses = { ...state.responses };
+      let changed = false;
+
+      Object.entries(action.payload).forEach(([type, content]) => {
+        if (newResponses[type as ActionType] !== content) {
+          newResponses[type as ActionType] = content;
+          changed = true;
+        }
+      });
+
+      return changed ? { ...state, responses: newResponses } : state;
+    default:
+      return state;
+  }
+}
+
+const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, isActive = false }) => {
+  // Use reducer for complex state management
+  const [panelState, dispatch] = useReducer(panelReducer, initialPanelState);
+  const { activePanels, loadingStates, responses } = panelState;
+
+  // Refs to track panel elements
   const panelRefs = useRef<Record<ActionType, HTMLDivElement | null>>({
     ask: null,
     analyze: null,
@@ -51,6 +153,43 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
   // Keep track of render count to debug excessive re-renders
   const renderCount = useRef(0);
   renderCount.current++;
+
+  // Effect to handle panel positioning for stacking
+  useEffect(() => {
+    if (activePanels.length === 0) return;
+
+    // Function to update panel positions
+    const updatePanelPositions = () => {
+      // Panel order matters for stacking (we want consistent ordering)
+      const actionTypes: ActionType[] = ['ask', 'analyze', 'improve'];
+      let currentBottom = -220; // Start with the default bottom position
+
+      // Only calculate for active panels
+      actionTypes.forEach(type => {
+        if (!activePanels.includes(type)) return;
+
+        const panel = panelRefs.current[type];
+        if (!panel) return;
+
+        // Apply the current position
+        panel.style.bottom = `${currentBottom}px`;
+        panel.style.zIndex = '19'; // Ensure consistent z-index
+
+        // Adjust for the next panel (add panel height + margin)
+        // Use a fixed height for consistency during loading/loaded states
+        const panelHeight = 210; // Fixed height to prevent jumps
+        currentBottom -= (panelHeight + 10); // 10px gap between panels
+      });
+    };
+
+    // Use requestAnimationFrame for better performance
+    const frameId = requestAnimationFrame(updatePanelPositions);
+
+    // Clean up animation frame on unmount or when dependencies change
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [activePanels, loadingStates]); // Add loadingStates as dependency to recalculate when loading changes
 
   // Memoized function to get cell content to prevent unnecessary recalculations
   const getCellContent = useCallback(() => {
@@ -84,74 +223,29 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
       const cachedState = panelStateCache.get(cell.model.id);
       if (cachedState) {
         // Restore cached responses
-        setResponses(prevResponses => {
-          // Only update changed responses to prevent unnecessary rerenders
-          const newResponses = { ...prevResponses };
-          let changed = false;
-
-          Object.entries(cachedState).forEach(([type, content]) => {
-            if (newResponses[type as ActionType] !== content) {
-              newResponses[type as ActionType] = content;
-              changed = true;
-            }
-          });
-
-          return changed ? newResponses : prevResponses;
-        });
+        dispatch({ type: 'RESTORE_CACHE', payload: cachedState });
       }
     }
   }, [isActive, cell]);
 
   // Effect to hide panel when cell becomes inactive
   useEffect(() => {
-    if (!isActive) {
-      setActivePanels([]);
-    }
-  }, [isActive]);
+    if (!isActive && activePanels.length > 0) {
+      // Save all panel states before closing
+      if (cell) {
+        const currentPanelState: Record<ActionType, string> = { ...responses };
+        // Only cache non-empty responses to save memory
+        const hasValidResponses = Object.values(currentPanelState).some(response => !!response.trim());
 
-  // Effect to adjust panel positions when panels change
-  useEffect(() => {
-    if (activePanels.length > 0) {
-      updatePanelPositions();
-    }
-  }, [activePanels]);
-
-  const updatePanelPositions = useCallback(() => {
-    // Calculate positions for stacked panels
-    const positions: Record<ActionType, { bottom: number }> = {
-      ask: { bottom: -220 },
-      analyze: { bottom: -220 },
-      improve: { bottom: -220 }
-    };
-
-    // Sort active panels to ensure consistent stacking order
-    const sortedPanels = [...activePanels].sort((a, b) => {
-      const order: Record<ActionType, number> = { ask: 0, analyze: 1, improve: 2 };
-      return order[a] - order[b];
-    });
-
-    // Calculate stacking positions
-    let currentBottom = -220; // Initial bottom position
-    for (let index = 0; index < sortedPanels.length; index++) {
-      const panelType = sortedPanels[index];
-      if (index > 0) {
-        // Get height of previous panel
-        const prevPanelType = sortedPanels[index - 1];
-        const prevPanel = panelRefs.current[prevPanelType];
-        const prevPanelHeight = prevPanel?.offsetHeight || 210;
-        currentBottom -= (prevPanelHeight + 10); // 10px gap between panels
+        if (hasValidResponses) {
+          panelStateCache.set(cell.model.id, currentPanelState);
+        }
       }
-      positions[panelType].bottom = currentBottom;
-    }
 
-    // Apply positions to each panel
-    Object.entries(positions).forEach(([type, position]) => {
-      const panel = panelRefs.current[type as ActionType];
-      if (panel) {
-        panel.style.bottom = `${position.bottom}px`;
-      }
-    });
-  }, [activePanels]);
+      // Close all panels
+      dispatch({ type: 'CLOSE_ALL_PANELS' });
+    }
+  }, [isActive, activePanels, cell, responses]);
 
   const getButtonStyle = useCallback((isActive: boolean) => {
     return {
@@ -165,11 +259,56 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
   const getPromptForActionType = useCallback((actionType: ActionType, content: string, output: string) => {
     switch (actionType) {
       case 'ask':
-        return `I have a Jupyter notebook cell with the following content:\n\nCode:\n${content}\n\nOutput:\n${output}\n\nPlease help me understand this code and its output.`;
+        return `You are a coding expert. Analyze this code and explain its functionality, key concepts, and any potential gotchas:
+
+Code:
+${content}
+
+Output:
+${output}
+
+Provide a clear, concise explanation focusing on:
+1. What the code does
+2. Key programming concepts used
+3. Important considerations or edge cases
+4. Any potential issues to watch out for`;
+
       case 'analyze':
-        return `Please analyze this Jupyter notebook cell:\n\nCode:\n${content}\n\nOutput:\n${output}\n\nProvide a detailed analysis of the code quality, potential issues, and performance considerations.`;
+        return `As a code quality expert, analyze this code for best practices, performance, and maintainability:
+
+Code:
+${content}
+
+Output:
+${output}
+
+Focus your analysis on:
+1. Code structure and organization
+2. Performance considerations
+3. Error handling and edge cases
+4. Documentation and readability
+5. Potential security concerns
+6. Optimization opportunities`;
+
       case 'improve':
-        return `Please suggest improvements for this Jupyter notebook cell:\n\nCode:\n${content}\n\nOutput:\n${output}\n\nProvide specific suggestions to improve the code's quality, readability, and efficiency.`;
+        return `As a senior developer, suggest specific improvements for this code:
+
+Code:
+${content}
+
+Output:
+${output}
+
+Provide concrete suggestions for:
+1. Code optimization and performance
+2. Better error handling
+3. Improved readability and maintainability
+4. Modern best practices
+5. Security enhancements
+6. Testing considerations
+
+For each suggestion, explain the benefit and provide a brief example if applicable.`;
+
       default:
         return '';
     }
@@ -208,17 +347,16 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
     if (!cell) return;
 
     // Toggle panel state
+    dispatch({ type: 'TOGGLE_PANEL', payload: actionType });
+
+    // If we're closing the panel, just return
     if (activePanels.includes(actionType)) {
-      // If panel is already open, close it
-      setActivePanels(prev => prev.filter(type => type !== actionType));
+      onClick(actionType);
       return;
     }
 
     // Check if we have a cached response
     const cachedContent = panelStateCache.get(cell.model.id)?.[actionType];
-
-    // Add panel to active panels
-    setActivePanels(prev => [...prev, actionType]);
 
     // Create a unique key for this request
     const requestKey = getRequestKey(cell.model.id, actionType);
@@ -229,16 +367,16 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
       pendingRequests.set(requestKey, true);
 
       // Update loading state
-      setLoadingStates(prev => ({
-        ...prev,
-        [actionType]: true
-      }));
+      dispatch({
+        type: 'SET_LOADING',
+        payload: { actionType: actionType, isLoading: true }
+      });
 
       // Clear previous response
-      setResponses(prev => ({
-        ...prev,
-        [actionType]: ''
-      }));
+      dispatch({
+        type: 'SET_RESPONSE',
+        payload: { actionType: actionType, response: '' }
+      });
 
       try {
         const { cellContent, outputContent } = getCellContent();
@@ -253,60 +391,61 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
           'mistral',
           undefined,
           (partialResponse: string, done: boolean) => {
-            // Append the new chunk to our accumulator
-            fullResponse += partialResponse;
-
-            // Update the UI with the current accumulated response
-            setResponses(prev => ({
-              ...prev,
-              [actionType]: fullResponse
-            }));
+            // Update the UI with the current response
+            dispatch({
+              type: 'SET_RESPONSE',
+              payload: { actionType: actionType, response: partialResponse }
+            });
 
             if (done) {
               // Update loading state when done
-              setLoadingStates(prev => ({
-                ...prev,
-                [actionType]: false
-              }));
+              dispatch({
+                type: 'SET_LOADING',
+                payload: { actionType: actionType, isLoading: false }
+              });
 
               // Cache the complete response
-              cacheResponse(actionType, fullResponse);
+              cacheResponse(actionType, partialResponse);
             }
           }
         );
       } catch (error) {
         console.error('Error getting Ollama response:', error);
-        setResponses(prev => ({
-          ...prev,
-          [actionType]: 'Error: Failed to get response from Ollama'
-        }));
-        setLoadingStates(prev => ({
-          ...prev,
-          [actionType]: false
-        }));
+        dispatch({
+          type: 'SET_RESPONSE',
+          payload: {
+            actionType: actionType,
+            response: 'Error: Failed to get response from Ollama'
+          }
+        });
+
+        dispatch({
+          type: 'SET_LOADING',
+          payload: { actionType: actionType, isLoading: false }
+        });
 
         // Clear the pending request flag on error
         pendingRequests.delete(requestKey);
       }
     } else if (cachedContent) {
       // Use cached response
-      setResponses(prev => ({
-        ...prev,
-        [actionType]: cachedContent
-      }));
+      dispatch({
+        type: 'SET_RESPONSE',
+        payload: { actionType: actionType, response: cachedContent }
+      });
 
       // Ensure loading state is false
-      setLoadingStates(prev => ({
-        ...prev,
-        [actionType]: false
-      }));
+      dispatch({
+        type: 'SET_LOADING',
+        payload: { actionType: actionType, isLoading: false }
+      });
     }
 
     onClick(actionType);
   }, [cell, activePanels, getCellContent, getPromptForActionType, onClick, cacheResponse, getRequestKey]);
 
-  const handleClosePanel = useCallback((actionType: ActionType) => {
-    setActivePanels(prev => prev.filter(type => type !== actionType));
+  const handleClosePanel = useCallback(() => {
+    dispatch({ type: 'CLOSE_ALL_PANELS' });
   }, []);
 
   const getPanelTitle = useCallback((type: ActionType) => {
@@ -325,17 +464,41 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
     const isLoading = loadingStates[type];
     const content = responses[type] || '';
 
+    // Use CSS class-based rendering with individual panel refs
     return (
       <div
-        ref={ref => { panelRefs.current[type] = ref; }}
+        key={`panel-${type}`}
+        ref={(node) => (panelRefs.current[type] = node)}
         className={`jp-AIAssistant-popup-panel ${isActive ? 'active' : ''}`}
-        style={{ display: isActive ? 'flex' : 'none' }}
+        data-panel-type={type}
+        data-loading={isLoading ? 'true' : 'false'}
+        style={{
+          // Set initial position - will be updated by the effect
+          bottom: '-220px',
+          // Use CSS transition for smooth movement
+          transition: 'bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          // Ensure consistent height during loading and content display
+          minHeight: '210px'
+        }}
       >
         <div className="jp-AIAssistant-popup-header">
           <div className="jp-AIAssistant-popup-title">{getPanelTitle(type)}</div>
-          <button className="jp-AIAssistant-popup-close" onClick={() => handleClosePanel(type)}>
-            <FontAwesomeIcon icon={faTimes} />
-          </button>
+          <div className="jp-AIAssistant-popup-actions">
+            <button
+              className="jp-AIAssistant-popup-copy"
+              onClick={() => navigator.clipboard.writeText(content)}
+              title="Copy content"
+            >
+              <FontAwesomeIcon icon={faCopy} />
+            </button>
+            <button
+              className="jp-AIAssistant-popup-close"
+              onClick={() => dispatch({ type: 'TOGGLE_PANEL', payload: type })}
+              title="Close panel"
+            >
+              <FontAwesomeIcon icon={faTimes} />
+            </button>
+          </div>
         </div>
         <div className="jp-AIAssistant-popup-content">
           {isLoading ? (
@@ -344,12 +507,12 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
               <div className="jp-AIAssistant-spinner"></div>
             </div>
           ) : (
-            content || 'No response yet'
+            content ? formatMessageWithCodeBlocks(content) : 'No response yet'
           )}
         </div>
       </div>
     );
-  }, [activePanels, loadingStates, responses, getPanelTitle, handleClosePanel]);
+  }, [activePanels, loadingStates, responses, getPanelTitle]);
 
   return (
     <div
@@ -361,7 +524,7 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
     >
       {/* Ask Button */}
       <button
-        className={`jp-AIAssistant-cell-button jp-AIAssistant-ask-button ${isActive ? 'jp-AIAssistant-cell-button-active' : ''}`}
+        className={`jp-AIAssistant-cell-button jp-AIAssistant-ask-button ${isActive ? 'jp-AIAssistant-cell-button-active' : ''} ${activePanels.includes('ask') ? 'jp-AIAssistant-button-selected' : ''}`}
         onClick={(e) => handleButtonClick('ask', e)}
         title="Ask AI about this cell"
         style={getButtonStyle(isActive)}
@@ -372,11 +535,10 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
         />
         <span>Ask</span>
       </button>
-      {renderPopupPanel('ask')}
 
       {/* Analyze Button */}
       <button
-        className={`jp-AIAssistant-cell-button jp-AIAssistant-analyze-button ${isActive ? 'jp-AIAssistant-cell-button-active' : ''}`}
+        className={`jp-AIAssistant-cell-button jp-AIAssistant-analyze-button ${isActive ? 'jp-AIAssistant-cell-button-active' : ''} ${activePanels.includes('analyze') ? 'jp-AIAssistant-button-selected' : ''}`}
         onClick={(e) => handleButtonClick('analyze', e)}
         title="Analyze code in this cell"
         style={getButtonStyle(isActive)}
@@ -387,11 +549,10 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
         />
         <span>Analyze</span>
       </button>
-      {renderPopupPanel('analyze')}
 
       {/* Improve Button */}
       <button
-        className={`jp-AIAssistant-cell-button jp-AIAssistant-improve-button ${isActive ? 'jp-AIAssistant-cell-button-active' : ''}`}
+        className={`jp-AIAssistant-cell-button jp-AIAssistant-improve-button ${isActive ? 'jp-AIAssistant-cell-button-active' : ''} ${activePanels.includes('improve') ? 'jp-AIAssistant-button-selected' : ''}`}
         onClick={(e) => handleButtonClick('improve', e)}
         title="Suggest improvements for this cell"
         style={getButtonStyle(isActive)}
@@ -402,7 +563,9 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
         />
         <span>Improve</span>
       </button>
-      {renderPopupPanel('improve')}
+
+      {/* Render all active panels */}
+      {activePanels.map(type => renderPopupPanel(type))}
     </div>
   );
 };
@@ -411,10 +574,10 @@ export class CellToolbarButtonWidget extends ReactWidget {
   private readonly _cell: Cell<ICellModel>;
   private readonly _onClick: (actionType: ActionType) => void;
   private _isActive: boolean = false;
+  private _isInitialized: boolean = false;
 
   constructor(cell: Cell<ICellModel>, onClick: (actionType: ActionType) => void) {
     super();
-    console.log('[Ollama Debug] Creating CellToolbarButtonWidget for cell:', cell.model.id);
     this._cell = cell;
     this._onClick = onClick;
     this.addClass('jp-AIAssistant-cell-button-wrapper');
@@ -424,6 +587,9 @@ export class CellToolbarButtonWidget extends ReactWidget {
 
     // Add a data attribute with the cell ID for easier debugging
     this.node.setAttribute('data-cell-id', cell.model.id);
+
+    // Initialize as hidden, using CSS properties instead of style properties
+    this.node.classList.add('jp-AIAssistant-cell-button-hidden');
   }
 
   setActive(isActive: boolean): void {
@@ -436,29 +602,35 @@ export class CellToolbarButtonWidget extends ReactWidget {
 
     // Make sure the node is available before trying to modify it
     if (!this.node) {
-      console.log('[Ollama Debug] Cannot update button - no DOM node available');
       return;
     }
 
-    if (isActive) {
-      console.log('[Ollama Debug] Activating buttons for cell:', this._cell.model.id);
-      this.node.classList.add('jp-AIAssistant-cell-buttons-active');
-      this.node.style.visibility = 'visible';
-      this.node.style.display = 'flex';
-      this.node.style.opacity = '1';
-    } else {
-      console.log('[Ollama Debug] Deactivating buttons for cell:', this._cell.model.id);
-      this.node.classList.remove('jp-AIAssistant-cell-buttons-active');
-      this.node.style.visibility = 'hidden';
-      this.node.style.opacity = '0';
+    // Lazy initialization - only fully initialize when first activated
+    if (isActive && !this._isInitialized) {
+      this._isInitialized = true;
     }
 
-    // Schedule an update to re-render the component
-    this.update();
+    // Use CSS classes instead of direct style manipulation
+    if (isActive) {
+      this.node.classList.add('jp-AIAssistant-cell-buttons-active');
+      this.node.classList.remove('jp-AIAssistant-cell-button-hidden');
+    } else {
+      this.node.classList.remove('jp-AIAssistant-cell-buttons-active');
+      this.node.classList.add('jp-AIAssistant-cell-button-hidden');
+    }
+
+    // Only update if initialized
+    if (this._isInitialized) {
+      this.update();
+    }
   }
 
   render(): JSX.Element {
-    console.log('[Ollama Debug] Rendering CellToolbarButtonWidget, active:', this._isActive);
+    // Only render the full component if it's been initialized
+    if (!this._isInitialized) {
+      return <div className="jp-AIAssistant-cell-button-placeholder"></div>;
+    }
+
     return <CellToolbarButton
       cell={this._cell}
       onClick={this._onClick}
@@ -466,43 +638,22 @@ export class CellToolbarButtonWidget extends ReactWidget {
     />;
   }
 
-  protected onBeforeShow(msg: Message): void {
-    console.log('[Ollama Debug] CellToolbarButtonWidget before show');
-    super.onBeforeShow(msg);
-  }
-
-  protected onAfterShow(msg: Message): void {
-    console.log('[Ollama Debug] CellToolbarButtonWidget after show');
-    super.onAfterShow(msg);
-  }
-
   protected onBeforeAttach(msg: Message): void {
-    console.log('[Ollama Debug] CellToolbarButtonWidget before attach');
     super.onBeforeAttach(msg);
-  }
-
-  protected onAfterAttach(msg: Message): void {
-    console.log('[Ollama Debug] CellToolbarButtonWidget attached to DOM');
-    super.onAfterAttach(msg);
 
     // Check if the parent is the active cell
     const notebookPanel = this._cell.parent?.parent as any;
     if (notebookPanel && notebookPanel.content && notebookPanel.content.activeCell === this._cell) {
-      console.log('[Ollama Debug] This cell is the active cell');
       this.setActive(true);
     } else {
-      console.log('[Ollama Debug] This cell is not the active cell');
       this.setActive(false);
     }
   }
 
-  protected onBeforeDetach(msg: Message): void {
-    console.log('[Ollama Debug] CellToolbarButtonWidget before detach');
-    super.onBeforeDetach(msg);
-  }
-
   protected onAfterDetach(msg: Message): void {
-    console.log('[Ollama Debug] CellToolbarButtonWidget after detach');
     super.onAfterDetach(msg);
+
+    // Clean up any resources when detached
+    this._isActive = false;
   }
 } 

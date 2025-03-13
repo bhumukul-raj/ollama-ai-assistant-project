@@ -8,6 +8,16 @@ if [ -z "$VIRTUAL_ENV" ]; then
 fi
 
 #python -m pip install --upgrade build
+echo "===== Cleaning extension files ====="
+# Remove any existing build files
+rm -rf ollama_jupyter_ai/static/ || echo "No static directory to remove"
+#rm -rf ollama_jupyter_ai/labextension/lib/ || echo "No lib directory to remove"
+rm -rf ollama_jupyter_ai/labextension/tsconfig.tsbuildinfo || echo "No tsbuildinfo to remove"
+#rm -rf node_modules/ || echo "No node_modules to remove"
+rm -rf dist/ || echo "No dist directory to remove"
+#rm -rf build/ || echo "No build directory to remove"
+rm -rf ollama_jupyter_ai.egg-info/ || echo "No egg-info to remove"
+
 
 echo "===== Building Python package ====="
 # Build the Python package with the wheel
@@ -30,11 +40,6 @@ echo "Installed extensions:"
 jupyter labextension list
 
 # start jupyter lab
-# Check if any service is running on port 5555 and kill it
-if lsof -Pi :5555 -sTCP:LISTEN -t >/dev/null; then
-    echo "Killing service running on port 5555"
-    kill $(lsof -t -i:5555)
-fi
 
 # Start Jupyter Lab on port 5555
-jupyter lab --no-browser --port=5555 --ServerApp.port_retries=0
+jupyter lab

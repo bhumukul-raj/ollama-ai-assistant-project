@@ -1,17 +1,51 @@
+/**
+ * @file lucide-react.d.ts
+ * @description TypeScript declaration file that provides a compatibility layer
+ * between Lucide React icons and Font Awesome icons.
+ * 
+ * This file allows the Ollama extension to use Font Awesome icons while maintaining
+ * the API compatibility with Lucide React, which is commonly used in React projects.
+ * It defines the necessary types and exports to simulate the Lucide React API, 
+ * but the implementation will use Font Awesome components instead.
+ * 
+ * This approach enables the extension to:
+ * 1. Use a familiar icon system (Font Awesome) that's already available in JupyterLab
+ * 2. Maintain code that looks like it's using Lucide React for better portability
+ * 3. Avoid adding an additional icon library dependency
+ */
+
 // This is a compatibility layer to use Font Awesome icons instead of Lucide React
 declare module 'lucide-react' {
   import { ComponentType, SVGProps } from 'react';
-  
+
+  /**
+   * Props interface for icon components
+   * 
+   * @interface IconProps
+   * @extends SVGProps<SVGSVGElement>
+   * @property {string|number} [size] - Icon size (can be CSS units or numeric value)
+   * @property {string} [color] - Icon color (CSS color value)
+   * @property {string|number} [stroke] - Stroke width for the icon
+   */
   export type IconProps = SVGProps<SVGSVGElement> & {
     size?: string | number;
     color?: string;
     stroke?: string | number;
   };
-  
+
+  /**
+   * Type definition for an icon component
+   * Represents any icon component that accepts IconProps
+   */
   export type Icon = ComponentType<IconProps>;
-  
-  // Map Lucide icons to Font Awesome equivalents
-  // We're keeping the same export names but they'll be implemented with Font Awesome
+
+  /**
+   * Lucide icon components mapped to Font Awesome equivalents
+   * 
+   * Each export below represents a Lucide icon name, but the actual
+   * implementation will use the corresponding Font Awesome icon.
+   * Comments indicate which Font Awesome icon will be used.
+   */
   export const MessageSquare: Icon;     // fa-comment
   export const Send: Icon;               // fa-paper-plane
   export const ArrowRight: Icon;         // fa-arrow-right

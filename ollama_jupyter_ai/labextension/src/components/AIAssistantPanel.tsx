@@ -1,3 +1,10 @@
+/**
+ * @file AIAssistantPanel.tsx
+ * @description This file contains the main panel component for the Ollama AI Assistant extension.
+ * It provides the user interface for interacting with the AI assistant, including the chat interface,
+ * model selection, and conversation management. The panel integrates with the JupyterLab notebook
+ * environment and provides tools for using AI capabilities within the notebook context.
+ */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -24,18 +31,37 @@ import { AIAssistantProvider, useAIAssistant, TabType } from '../context/AIAssis
 import { applySyntaxHighlighting, formatMessageWithCodeBlocks } from '../utils/formatUtils';
 import { debounce } from '../utils/performanceUtils';
 import ConversationStorageService, { SavedConversation } from '../services/ConversationStorageService';
+import { useTheme } from '../hooks/useTheme';
 
-// Props interface
+/**
+ * Props for the AIAssistantPanel component.
+ * 
+ * @interface AIAssistantPanelProps
+ * @property {INotebookTracker} notebooks - The JupyterLab notebook tracker instance
+ * that provides access to the active notebook and its contents.
+ */
 interface AIAssistantPanelProps {
   notebooks: INotebookTracker;
 }
 
-// Tab definitions
+/**
+ * Tab definitions for the assistant panel.
+ * Each tab has an ID, label, and icon.
+ */
 const tabs: { id: TabType; label: string; icon: IconProp }[] = [
   { id: 'chat', label: 'Chat', icon: faBolt }
 ];
 
-// Main component implementation
+/**
+ * The main content component for the AI Assistant panel.
+ * 
+ * This component handles the rendering of the chat interface, model selection,
+ * and conversation management. It uses the AIAssistantContext to access and
+ * update state related to the AI assistant.
+ * 
+ * @param {AIAssistantPanelProps} props - Component properties
+ * @returns {JSX.Element} The rendered component
+ */
 const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -270,6 +296,9 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
     setShowConversations(false);
   };
 
+  // Use our theme hook to get JupyterLab theme
+  const { isDarkTheme } = useTheme();
+
   // Render active tab content
   const renderTabContent = useCallback(() => {
     switch (activeTab) {
@@ -333,7 +362,7 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
 
   // Render main component
   return (
-    <div className="jp-AIAssistant" ref={containerRef}>
+    <div className={`jp-AIAssistant ${isDarkTheme ? 'jp-AIAssistant-dark' : 'jp-AIAssistant-light'}`} ref={containerRef}>
       <div className="jp-AIAssistant-header">
         <div className="jp-AIAssistant-title">
           <FontAwesomeIcon icon={faRobot} className="fa-icon-sm" />
@@ -423,7 +452,16 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
   );
 };
 
-// Wrapper component that provides the context
+/**
+ * The AIAssistantPanel component is the entry point for the Ollama AI Assistant panel.
+ * It wraps the AIAssistantPanelContent with the necessary context providers.
+ * 
+ * This component sets up the AI assistant context which provides state management
+ * and functionality to all child components in the panel.
+ * 
+ * @param {AIAssistantPanelProps} props - Component properties
+ * @returns {JSX.Element} The rendered panel component with context
+ */
 export const AIAssistantPanel: React.FC<AIAssistantPanelProps> = ({ notebooks }) => {
   return (
     <AIAssistantProvider notebooks={notebooks}>

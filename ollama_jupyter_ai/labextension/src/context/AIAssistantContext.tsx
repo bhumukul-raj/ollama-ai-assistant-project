@@ -1,9 +1,33 @@
+/**
+ * @file AIAssistantContext.tsx
+ * @description This file implements the React Context for the Ollama AI Assistant.
+ * It provides the central state management and functionality for the entire application,
+ * handling chat messages, notebook integration, model selection, conversation management,
+ * and user preferences. All components can access this context to share state and trigger actions.
+ * 
+ * The context follows a provider pattern where AIAssistantProvider wraps the application
+ * and makes all AI assistant functionality available to child components through the
+ * useAIAssistant hook. This creates a centralized state management system that avoids
+ * prop drilling and allows components at any level to access AI features.
+ */
 import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect, useMemo } from 'react';
 import { INotebookTracker } from '@jupyterlab/notebook';
 import useOllamaApi from '../hooks/useOllamaApi';
 import { useNotebookContent } from '../hooks/useNotebookContent';
+import { ThemeManager } from '../utils/themeUtils';
 
-// Types
+/**
+ * Interface defining the structure of a message in the conversation.
+ * 
+ * @interface Message
+ * @property {('user' | 'assistant')} role - Who sent the message (user or AI assistant)
+ * @property {string} content - The text content of the message
+ * @property {('loading' | 'error' | 'complete')} [status] - The current status of the message
+ * @property {{ start?: number; end?: number }} [timestamp] - Timing information for the message
+ * @property {boolean} [fromCache] - Whether the message was retrieved from cache
+ * @property {string} [requestId] - Unique identifier for the associated request
+ * @property {TabType} [tab] - The tab the message belongs to
+ */
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -17,8 +41,23 @@ export interface Message {
   tab?: TabType;
 }
 
+/**
+ * Types of tabs available in the AI Assistant.
+ * Currently only supports 'chat', but can be extended in the future
+ * to include other interaction modes like 'explain', 'debug', etc.
+ */
 export type TabType = 'chat';
 
+/**
+ * User preferences for the AI Assistant.
+ * 
+ * @interface UserPreferences
+ * @property {boolean} autoScroll - Whether to automatically scroll to new messages
+ * @property {string} defaultModel - The default Ollama model to use
+ * @property {('light' | 'dark' | 'auto')} theme - The UI theme preference
+ * @property {boolean} showTimestamps - Whether to display message timestamps
+ * @property {boolean} enableKeyboardShortcuts - Whether keyboard shortcuts are enabled
+ */
 interface UserPreferences {
   autoScroll: boolean;
   defaultModel: string;
@@ -27,7 +66,14 @@ interface UserPreferences {
   enableKeyboardShortcuts: boolean;
 }
 
-// Context interface
+/**
+ * Interface defining all the state and functions available through the AI Assistant context.
+ * This comprehensive interface provides access to all functionality needed by components
+ * throughout the application, including state management, API interactions, notebook
+ * operations, and conversation handling.
+ * 
+ * @interface AIAssistantContextValue
+ */
 interface AIAssistantContextValue {
   // State
   messages: Message[];
@@ -76,38 +122,66 @@ interface AIAssistantContextValue {
   loadConversation: (id: string) => boolean;
 }
 
-// Create context with a default undefined value
+// Create the context with a default undefined value
+// This forces consumers to use the context within a provider
 const AIAssistantContext = createContext<AIAssistantContextValue | undefined>(undefined);
 
-// Provider props
+/**
+ * Props for the AIAssistantProvider component.
+ * 
+ * @interface AIAssistantProviderProps
+ * @property {ReactNode} children - Child components that will have access to the context
+ * @property {INotebookTracker} notebooks - The JupyterLab notebook tracker instance
+ */
 interface AIAssistantProviderProps {
   children: ReactNode;
   notebooks: INotebookTracker;
 }
 
-// Default user preferences
-const defaultUserPreferences: UserPreferences = {
-  autoScroll: true,
-  defaultModel: 'mistral',
-  theme: 'auto',
-  showTimestamps: true,
-  enableKeyboardShortcuts: true
-};
-
-// Load preferences from localStorage
+/**
+ * Load user preferences from localStorage or return defaults
+ */
 const loadUserPreferences = (): UserPreferences => {
   try {
-    const savedPrefs = localStorage.getItem('ollamaAIAssistantPreferences');
+    const savedPrefs = localStorage.getItem('ollama_user_preferences');
+
     if (savedPrefs) {
-      return { ...defaultUserPreferences, ...JSON.parse(savedPrefs) };
+      const parsedPrefs = JSON.parse(savedPrefs);
+      return {
+        ...parsedPrefs,
+        // Always use 'auto' for theme, as we'll sync with JupyterLab
+        theme: 'auto'
+      };
     }
   } catch (error) {
-    console.error('Error loading preferences:', error);
+    console.error('Failed to load user preferences', error);
   }
-  return defaultUserPreferences;
+
+  return {
+    autoScroll: true,
+    defaultModel: 'mistral',
+    theme: 'auto', // Default to auto for JupyterLab theme sync
+    showTimestamps: true,
+    enableKeyboardShortcuts: true
+  };
 };
 
-// Provider component
+/**
+ * Provider component that makes the AI Assistant context available to its children.
+ * 
+ * This component initializes all the state, hooks, and functions needed for the AI Assistant,
+ * then provides them to child components through React Context. It serves as the central
+ * hub for all AI assistant functionality, managing:
+ * 
+ * - Message history and conversation state
+ * - User preferences and settings
+ * - Interaction with the Ollama API
+ * - Integration with Jupyter notebooks
+ * - Conversation import/export capabilities
+ * 
+ * @param {AIAssistantProviderProps} props - The provider props
+ * @returns {JSX.Element} The provider component with children
+ */
 export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ children, notebooks }) => {
   // Local state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -133,7 +207,35 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     localStorage.setItem('ollamaAIAssistantPreferences', JSON.stringify(userPreferences));
   }, [userPreferences]);
 
-  // Set a specific user preference
+  // Initialize theme manager when the component mounts
+  useEffect(() => {
+    // Initialize ThemeManager singleton
+    const themeManager = ThemeManager.getInstance();
+
+    // Listen for theme changes from JupyterLab
+    const themeListener = {
+      onThemeChange: (newTheme: 'light' | 'dark') => {
+        console.log(`[Ollama AI] Applying JupyterLab theme: ${newTheme}`);
+        // We don't need to update our theme state as we're using JupyterLab's CSS variables
+      }
+    };
+
+    themeManager.addThemeChangeListener(themeListener);
+
+    return () => {
+      themeManager.removeThemeChangeListener(themeListener);
+    };
+  }, []);
+
+  /**
+   * Set a specific user preference
+   * 
+   * Updates a single preference value while preserving all other preferences.
+   * This is a type-safe way to update individual preferences.
+   * 
+   * @param {K} key - The preference key to update
+   * @param {UserPreferences[K]} value - The new value for the preference
+   */
   const setUserPreference = useCallback(<K extends keyof UserPreferences>(
     key: K,
     value: UserPreferences[K]
@@ -141,7 +243,14 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     setUserPreferences(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  // Add a new message to the conversation with the correct tab
+  /**
+   * Add a new message to the conversation
+   * 
+   * Adds a message to the conversation history, ensuring it has the correct
+   * tab information. This is used for both user and assistant messages.
+   * 
+   * @param {Message} message - The message to add
+   */
   const addMessage = useCallback((message: Message) => {
     // Ensure message has tab info
     const messageWithTab = {
@@ -155,7 +264,14 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     });
   }, [activeTab]);
 
-  // Update a message by finding it and replacing it
+  /**
+   * Update an existing message
+   * 
+   * Finds a message in the conversation history and updates it with new content.
+   * This is primarily used for updating assistant messages during streaming responses.
+   * 
+   * @param {Message} updatedMessage - The updated message data
+   */
   const updateMessage = useCallback((updatedMessage: Message) => {
     // Ensure the updated message has the correct tab information
     const messageWithTab = {
@@ -171,7 +287,16 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     ));
   }, [activeTab]);
 
-  // Send a chat message
+  /**
+   * Send a chat message to the AI assistant
+   * 
+   * Adds the user message to the conversation, creates a loading assistant message,
+   * sends the request to the Ollama API, and updates the assistant message with
+   * the response as it streams in.
+   * 
+   * @param {string} message - The user message to send
+   * @returns {Promise<void>} A promise that resolves when the message is fully processed
+   */
   const sendChatMessage = useCallback(async (message: string) => {
     if (!message.trim()) return;
 
@@ -201,7 +326,15 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     };
     addMessage(assistantMessage);
 
-    // Handler for streaming updates
+    /**
+     * Handler for streaming updates from the API
+     * 
+     * Updates the assistant message with each chunk of the response as it arrives.
+     * 
+     * @param {string} partialResponse - The current accumulated response text
+     * @param {boolean} done - Whether the response is complete
+     * @param {boolean} fromCache - Whether the response was retrieved from cache
+     */
     const handlePartialResponse = (partialResponse: string, done: boolean, fromCache?: boolean) => {
       updateMessage({
         ...assistantMessage,
@@ -253,7 +386,14 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     }
   }, [ollama, notebook.notebookService, addMessage, updateMessage, setChatInput]);
 
-  // Retry the last message
+  /**
+   * Retry the last failed message
+   * 
+   * Finds the last error message and its preceding user message, then
+   * removes the error message and sends the user message again.
+   * 
+   * @returns {Promise<void>} A promise that resolves when the retry is complete
+   */
   const retryLastMessage = useCallback(async () => {
     // Find the last error message and its preceding user message
     const lastErrorIndex = [...messages].findIndex(msg => msg.status === 'error');
@@ -282,7 +422,15 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     }
   }, [messages, activeTab, sendChatMessage, notebook.notebookService]);
 
-  // Regenerate the last response
+  /**
+   * Regenerate the last assistant response
+   * 
+   * Finds the last assistant message and its preceding user message,
+   * then sends the user message again to get a new response while
+   * keeping the original response in the history.
+   * 
+   * @returns {Promise<void>} A promise that resolves when regeneration is complete
+   */
   const regenerateResponse = useCallback(async () => {
     // Find the last assistant message and its preceding user message
     const lastAssistantIndex = [...messages].reverse().findIndex(msg => msg.role === 'assistant');
@@ -314,11 +462,16 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     }
   }, [messages, activeTab, sendChatMessage, notebook.notebookService]);
 
-  // Clear messages
+  /**
+   * Clear messages for a specific tab
+   * 
+   * Removes all messages associated with the specified tab or the active tab
+   * if no tab is specified. This effectively starts a new conversation.
+   * 
+   * @param {TabType} [tabType] - The tab to clear messages for (defaults to active tab)
+   */
   const clearMessages = useCallback((tabType?: TabType) => {
     const tabToUse = tabType || activeTab;
-
-    // Remove excessive logging to improve performance
 
     // Remove messages that belong to the specified tab
     setMessages(prev => {
@@ -327,7 +480,15 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     });
   }, [activeTab]);
 
-  // Stop current request
+  /**
+   * Stop the current request
+   * 
+   * Cancels an in-progress API request and updates the associated message
+   * to indicate that generation was stopped. Can target a specific request
+   * by ID or the most recent loading message.
+   * 
+   * @param {string} [requestId] - Optional specific request ID to cancel
+   */
   const stopCurrentRequest = useCallback((requestId?: string) => {
     console.log("Stop request called", requestId ? `for requestId: ${requestId}` : "without requestId");
 
@@ -403,7 +564,15 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     console.log("Updated message with stop notification");
   }, [messages, ollama, updateMessage]);
 
-  // Insert code cell
+  /**
+   * Insert a code cell into the notebook
+   * 
+   * Creates a new code cell with the specified content and inserts it
+   * at the specified index or at the current position if no index is provided.
+   * 
+   * @param {string} content - The code content to insert
+   * @param {number} [index] - Optional index to insert the cell at
+   */
   const insertCodeCell = useCallback((content: string, index?: number) => {
     try {
       notebook.notebookService.insertCell('code', content, index);
@@ -412,7 +581,14 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     }
   }, [notebook.notebookService]);
 
-  // Execute code cell
+  /**
+   * Execute a code cell in the notebook
+   * 
+   * Runs the code in the cell at the specified index.
+   * 
+   * @param {number} index - The index of the cell to execute
+   * @returns {Promise<void>} A promise that resolves when execution is complete
+   */
   const executeCodeCell = useCallback(async (index: number) => {
     try {
       await notebook.notebookService.executeCell(index);
@@ -421,7 +597,15 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     }
   }, [notebook.notebookService]);
 
-  // Export conversation
+  /**
+   * Export the current conversation
+   * 
+   * Converts the conversation to the specified format (JSON, Markdown, or Notebook).
+   * Only exports messages for the current tab.
+   * 
+   * @param {('json' | 'markdown' | 'notebook')} format - The format to export to
+   * @returns {string} The exported conversation as a string
+   */
   const exportConversation = useCallback((format: 'json' | 'markdown' | 'notebook') => {
     // Only export messages for the current tab
     const messagesToExport = messages.filter(msg => !msg.tab || msg.tab === activeTab);
@@ -468,7 +652,15 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     return '';
   }, [messages, activeTab]);
 
-  // Import conversation
+  /**
+   * Import a conversation
+   * 
+   * Parses a JSON string of messages and adds them to the current tab,
+   * replacing any existing messages for that tab.
+   * 
+   * @param {string} data - The JSON string containing messages to import
+   * @returns {boolean} True if import was successful, false otherwise
+   */
   const importConversation = useCallback((data: string) => {
     try {
       const importedMessages = JSON.parse(data) as Message[];
@@ -494,7 +686,13 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     }
   }, [activeTab]);
 
-  // Save conversation
+  /**
+   * Save the current conversation to localStorage
+   * 
+   * Stores all messages in localStorage with a timestamp-based ID.
+   * 
+   * @returns {string|null} The ID of the saved conversation or null if saving failed
+   */
   const saveConversation = useCallback(() => {
     try {
       const conversationId = `conversation_${Date.now()}`;
@@ -506,7 +704,15 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
     }
   }, [messages]);
 
-  // Load conversation
+  /**
+   * Load a conversation from localStorage
+   * 
+   * Retrieves a previously saved conversation by its ID and replaces
+   * the current messages with the loaded ones.
+   * 
+   * @param {string} id - The ID of the conversation to load
+   * @returns {boolean} True if loading was successful, false otherwise
+   */
   const loadConversation = useCallback((id: string) => {
     try {
       const savedData = localStorage.getItem(`ollamaAIAssistant_${id}`);
@@ -574,7 +780,16 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
   );
 };
 
-// Custom hook to use the AI Assistant context
+/**
+ * Custom hook to access the AI Assistant context.
+ * 
+ * This hook provides a convenient way for components to access all the
+ * AI assistant functionality. It ensures the context is being used within
+ * a provider and throws an error if it's not.
+ * 
+ * @returns {AIAssistantContextValue} The AI Assistant context value
+ * @throws {Error} If used outside of an AIAssistantProvider
+ */
 export const useAIAssistant = () => {
   const context = useContext(AIAssistantContext);
   if (context === undefined) {
