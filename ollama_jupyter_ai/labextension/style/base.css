@@ -103,36 +103,63 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  position: relative;
   background-color: var(--jp-layout-color1, rgba(255, 255, 255, 0.95));
   color: var(--jp-ui-font-color0, #333);
   font-family: var(--jp-ui-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif);
   font-size: var(--jp-ui-font-size1, 14px);
   line-height: 1.5;
-  overflow: hidden;
-  position: relative;
   border-radius: 8px;
   box-shadow: var(--jp-shadow-base, 0 1px 3px rgba(0, 0, 0, 0.12));
 }
 
 /* Conversation container */
 .jp-AIAssistant-conversationContainer {
+  position: relative;
+  flex: 1 1 auto;
+  overflow: hidden; /* Changed from visible to hidden to ensure child scrolling works */
+  height: auto;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-  position: relative;
   padding: 0;
-  background-color: var(--jp-layout-color1, rgba(255, 255, 255, 0.95));
+  margin: 0;
+  box-sizing: border-box;
+  min-height: 0;
 }
 
 .jp-AIAssistant-conversation {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background-color: var(--jp-layout-color1, rgba(255, 255, 255, 0.95));
+  flex: 1 1 auto;
+  overflow-y: scroll !important; /* Force scrollbar to always be present */
+  overflow-x: hidden;
+  padding: 1rem;
+  margin: 0;
+  box-sizing: border-box;
+  min-height: 100px;
+  max-height: none;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+  position: relative; /* Ensure proper positioning context for scroll control */
+}
+
+.jp-AIAssistant-conversation::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  display: block !important; /* Force scrollbar to always display */
+  background-color: transparent;
+}
+
+.jp-AIAssistant-conversation::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  min-height: 40px; /* Ensure thumb is always visible */
+}
+
+.jp-AIAssistant-conversation::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.5);
 }
 
 /* Empty state */
@@ -157,12 +184,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 8px;
   border-bottom: 1px solid var(--jp-border-color1, rgba(0, 0, 0, 0.1));
   background-color: var(--jp-layout-color1, rgba(255, 255, 255, 0.95));
-  border-top-left-radius: 8px;
+  border-top-left-radius: 8px;  
   border-top-right-radius: 8px;
-  min-height: 50px;
 }
 
 .jp-AIAssistant-title {
@@ -232,14 +258,10 @@
   transition: var(--ai-assistant-transition);
 }
 
-.jp-AIAssistant-tab:hover {
-  background-color: var(--jp-layout-color3, rgba(228, 231, 236, 0.6));
-}
 
 .jp-AIAssistant-tab-active {
   font-weight: bold;
   color: var(--jp-brand-color1, #3b82f6);
-  background-color: var(--jp-layout-color3, rgba(228, 231, 236, 0.6));
 }
 
 /* Toolbar buttons */
@@ -278,7 +300,9 @@
   border: 1px solid var(--ai-assistant-border);
   animation: fade-in 0.3s ease-out;
   box-shadow: var(--jp-shadow-base, 0 1px 3px rgba(0, 0, 0, 0.12));
-  max-width: 80%;
+  max-width: 92%;
+  width: auto;
+  box-sizing: border-box;
   transition: var(--ai-assistant-transition);
 }
 
@@ -332,8 +356,89 @@
   flex: 1;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  word-break: break-word;
   font-size: var(--jp-ui-font-size1, 14px);
   line-height: 1.5;
+  max-width: 100%;
+  overflow: hidden; /* Hide all scrollbars */
+}
+
+/* Input area */
+.jp-AIAssistant-input {
+  position: fixed;
+  bottom: 0;
+  border-top: 1px solid var(--jp-border-color1, rgba(0, 0, 0, 0.1));
+  background-color: var(--jp-layout-color1, rgba(255, 255, 255, 0.95));
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  margin-top: auto;
+  min-width: 40%;
+  width: 100%;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 12px;
+}
+
+.jp-AIAssistant-input-form {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+  gap: 8px;
+  width: 100%;
+}
+
+.jp-AIAssistant-input-textarea {
+  resize: none;
+  border: 1px solid var(--jp-border-color1, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: var(--jp-ui-font-size1, 14px);
+  line-height: 1.5;
+  max-height: 200px;
+  min-height: 40px;
+  background-color: var(--jp-layout-color1, rgba(255, 255, 255, 0.95));
+  color: var(--jp-ui-font-color0, #333);
+  font-family: var(--jp-ui-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif);
+  overflow-y: auto;
+  box-shadow: var(--jp-input-box-shadow, none);
+  flex: 1;
+  min-width: 40%;
+}
+
+.jp-AIAssistant-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 15px;
+}
+
+.jp-AIAssistant-input-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: var(--jp-ui-font-size1, 14px);
+  cursor: pointer;
+  background-color: var(--jp-brand-color1, #3b82f6);
+  color: white;
+  transition: var(--ai-assistant-transition);
+  white-space: nowrap;
+}
+
+.jp-AIAssistant-input-button:hover {
+  background-color: var(--jp-brand-color2, #2563eb);
+}
+
+.jp-AIAssistant-input-button:disabled {
+  background-color: var(--jp-layout-color3, #9ca3af);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* Timestamp */
@@ -494,88 +599,66 @@
 
 /* Scroll control */
 .jp-AIAssistant-scrollControl {
+  position: absolute;
+  bottom: 15px; /* Raised to be more visible */
+  right: 15px; /* Increased for better visibility */
+  z-index: 100; /* Increased z-index to ensure it appears above content */
+  background-color: var(--jp-layout-color1);
+  border-radius: 4px;
+  padding: 8px; /* Increased padding for better clickability */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Stronger shadow for better visibility */
+  opacity: 0.9; /* Increased opacity */
+  transition: opacity 0.2s ease;
   display: flex;
   align-items: center;
-  font-size: var(--jp-ui-font-size0, 12px);
-  color: var(--jp-ui-font-color2, #666);
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid var(--jp-border-color1);
+  height: 30px;
+  width: 30px;
 }
 
-.jp-AIAssistant-scrollControl input {
-  margin-right: 5px;
+.jp-AIAssistant-scrollControl:hover {
+  opacity: 1;
+  transform: scale(1.05);
+  background-color: var(--jp-layout-color2);
 }
 
 /* Code blocks */
 .jp-AIAssistant-formatted-content {
-  display: block;
-}
-
-/* Scrollbar styling - consolidated for all scrollable content */
-.jp-AIAssistant-popup-content,
-.jp-AIAssistant-conversation {
-  /* Enhanced scrollbar styling */
-  scrollbar-width: thin;
-  scrollbar-color: var(--ai-assistant-text-secondary) transparent;
-}
-
-/* Hide scrollbar for Chrome, Safari and Opera */
-.jp-AIAssistant-popup-content::-webkit-scrollbar,
-.jp-AIAssistant-conversation::-webkit-scrollbar {
-  width: 6px;
-}
-
-/* Track */
-.jp-AIAssistant-popup-content::-webkit-scrollbar-track,
-.jp-AIAssistant-conversation::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 3px;
-}
-
-/* Handle */
-.jp-AIAssistant-popup-content::-webkit-scrollbar-thumb,
-.jp-AIAssistant-conversation::-webkit-scrollbar-thumb {
-  background-color: var(--ai-assistant-text-secondary);
-  border-radius: 3px;
-  transition: background-color 0.2s ease;
-}
-
-/* Handle on hover */
-.jp-AIAssistant-popup-content::-webkit-scrollbar-thumb:hover,
-.jp-AIAssistant-conversation::-webkit-scrollbar-thumb:hover {
-  background-color: var(--ai-assistant-text-primary);
-}
-
-.jp-AIAssistant-popup-content {
-  flex: 1;
-  padding: 12px;
-  color: var(--ai-assistant-text-primary);
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  line-height: 1.5;
-  min-height: 150px; /* Ensure consistent minimum height */
-}
-
-/* Paragraph styling */
-.jp-AIAssistant-formatted-content p {
-  margin: 0 0 0.5em 0;
-  line-height: 1.5;
   width: 100%;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow: hidden;
+  padding: 8px;
+  line-height: 1.5;
+  box-sizing: border-box;
 }
 
-/* Last paragraph */
+.jp-AIAssistant-formatted-content p {
+  margin: 0 0 8px 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
 .jp-AIAssistant-formatted-content p:last-child {
   margin-bottom: 0;
 }
 
 .jp-AIAssistant-code-block {
-  margin: 12px 0;
-  background-color: var(--jp-cell-editor-background, #f6f8fa);
-  border-radius: 6px;
+  margin: 8px 0;
+  border-radius: 4px;
   overflow: hidden;
-  border: 1px solid var(--jp-border-color1, rgba(0, 0, 0, 0.1));
-  font-family: var(--jp-code-font-family, monospace);
-  font-size: var(--jp-code-font-size, 13px);
-  line-height: 1.5;
-  box-shadow: var(--ai-assistant-code-block-shadow, 0 2px 6px rgba(0, 0, 0, 0.1));
+  background-color: var(--jp-cell-editor-background, #f5f5f5);
+  border: 1px solid var(--jp-border-color1, #ddd);
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .jp-AIAssistant-code-header {
@@ -599,8 +682,12 @@
   padding: 12px;
   white-space: pre;
   overflow-x: auto;
+  overflow-y: hidden;
   color: var(--jp-content-font-color1, #333);
   background-color: var(--jp-cell-editor-background, #f6f8fa);
+  max-width: 100%;
+  font-size: 13px;
+  font-family: var(--jp-code-font-family, monospace);
 }
 
 /* Syntax highlighting */
@@ -677,27 +764,36 @@
   .jp-AIAssistant {
     width: 100%;
   }
+  .jp-AIAssistant-input {
+    min-width: 50%;
+    width: 90%;
+  }
 }
 
 @media (max-width: 768px) {
   .jp-AIAssistant-message {
     padding: 8px;
   }
-  .jp-AIAssistant-header {
-    flex-wrap: wrap;
-    height: auto;
-    min-height: 40px;
-    padding: 8px;
+ 
+  .jp-AIAssistant-input {
+    min-width: 70%;
+    width: 90%;
   }
   .jp-AIAssistant-input-form {
     flex-direction: column;
     align-items: stretch;
+  }
+  .jp-AIAssistant-input-actions {
+    justify-content: flex-end;
+    margin-top: 8px;
   }
 }
 
 @media (max-width: 480px) {
   .jp-AIAssistant-input {
     padding: 8px;
+    min-width: 85%;
+    width: 95%;
   }
   .jp-AIAssistant-conversation {
     padding: 8px;
@@ -705,6 +801,14 @@
   .jp-AIAssistant-modelSelector {
     width: 100%;
     margin-top: 4px;
+  }
+  .jp-AIAssistant-input-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+  .jp-AIAssistant-input-button {
+    flex: 1;
+    justify-content: center;
   }
 }
 
@@ -1344,4 +1448,291 @@
 .jp-AIAssistant-cell-button,
 .jp-AIAssistant-popup-panel {
   will-change: transform, opacity;
+}
+
+/* Conversation List Styles */
+.jp-AIAssistant-conversations {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: 12px;
+  background-color: var(--jp-layout-color1, rgba(255, 255, 255, 0.95));
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 15;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.jp-AIAssistant-conversations-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--jp-border-color1, rgba(0, 0, 0, 0.1));
+}
+
+.jp-AIAssistant-conversations-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.jp-AIAssistant-conversations-header-left h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0, #333);
+}
+
+.jp-AIAssistant-conversations-header-left .jp-AIAssistant-button-small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.jp-AIAssistant-conversations-header-left .jp-AIAssistant-button-small:hover {
+  background-color: var(--jp-layout-color3);
+}
+
+.jp-AIAssistant-conversations-header-left .jp-AIAssistant-button-small .fa-icon-sm {
+  font-size: 12px;
+}
+
+.jp-AIAssistant-conversations-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.jp-AIAssistant-button-small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--jp-layout-color2);
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.jp-AIAssistant-button-small:hover {
+  background-color: var(--jp-layout-color3);
+}
+
+.jp-AIAssistant-button-small span {
+  margin-left: 4px;
+}
+
+.jp-AIAssistant-button-clear-filters {
+  color: var(--jp-brand-color1);
+}
+
+.jp-AIAssistant-conversations-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.jp-AIAssistant-conversations-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.jp-AIAssistant-search-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--jp-ui-font-color2);
+  font-size: 12px;
+}
+
+.jp-AIAssistant-conversations-search input {
+  width: 100%;
+  padding: 6px 10px 6px 28px;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+  font-size: 13px;
+  background-color: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color0);
+}
+
+.jp-AIAssistant-search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--jp-ui-font-color2);
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+}
+
+.jp-AIAssistant-conversations-sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jp-AIAssistant-conversations-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.jp-AIAssistant-tag-icon {
+  color: var(--jp-ui-font-color2);
+  margin-right: 4px;
+  font-size: 12px;
+}
+
+.jp-AIAssistant-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jp-AIAssistant-conversation-tag {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--jp-layout-color2);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+}
+
+.jp-AIAssistant-conversation-tag:hover {
+  background-color: var(--jp-layout-color3);
+}
+
+.jp-AIAssistant-conversation-tag-remove {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-AIAssistant-conversations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.jp-AIAssistant-no-conversations {
+  text-align: center;
+  padding: 20px;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-AIAssistant-conversation-item {
+  display: flex;
+  padding: 12px;
+  border-radius: 6px;
+  background-color: var(--jp-layout-color2);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid var(--jp-border-color1);
+}
+
+.jp-AIAssistant-conversation-item:hover {
+  background-color: var(--jp-layout-color3);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.jp-AIAssistant-conversation-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.jp-AIAssistant-conversation-title {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jp-ui-font-color0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jp-AIAssistant-conversation-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--jp-ui-font-color2);
+  margin-bottom: 4px;
+}
+
+.jp-AIAssistant-conversation-date,
+.jp-AIAssistant-conversation-model,
+.jp-AIAssistant-conversation-count {
+  white-space: nowrap;
+}
+
+.jp-AIAssistant-conversation-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.jp-AIAssistant-conversation-preview {
+  font-size: 12px;
+  color: var(--jp-ui-font-color1);
+  margin: 4px 0 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+}
+
+.jp-AIAssistant-conversation-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.jp-AIAssistant-button-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background-color: transparent;
+  color: var(--jp-ui-font-color2);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.jp-AIAssistant-button-icon:hover {
+  background-color: var(--jp-layout-color4);
+  color: var(--jp-ui-font-color0);
 } 

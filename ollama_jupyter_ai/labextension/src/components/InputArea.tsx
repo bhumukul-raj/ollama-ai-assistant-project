@@ -166,7 +166,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
               style={buttonStyle}
             >
               <FontAwesomeIcon icon={faStop} className="fa-icon-sm" />
-              <span>Stop</span>
             </button>
           ) : (
             <>
@@ -181,7 +180,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
                   style={buttonStyle}
                 >
                   <FontAwesomeIcon icon={faSync} className="fa-icon-sm" />
-                  <span>Regenerate</span>
                 </button>
               )}
 
@@ -194,7 +192,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
                 style={buttonStyle}
               >
                 <FontAwesomeIcon icon={faPaperPlane} className="fa-icon-sm" />
-                <span>Send</span>
               </button>
             </>
           )}

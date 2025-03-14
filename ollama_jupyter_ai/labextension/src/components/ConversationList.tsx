@@ -16,7 +16,8 @@ import {
   faSearch,
   faTimes,
   faSort,
-  faTag
+  faTag,
+  faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import { SavedConversation } from '../services/ConversationStorageService';
 import { useAIAssistant } from '../context/AIAssistantContext';
@@ -32,6 +33,7 @@ import { useAIAssistant } from '../context/AIAssistantContext';
  * @property {() => void} onImport - Callback when the import button is clicked
  * @property {() => void} onNew - Callback when the new conversation button is clicked
  * @property {boolean} isVisible - Whether the conversation list is currently visible
+ * @property {() => void} onBack - Callback when the back button is clicked
  */
 interface ConversationListProps {
   conversations: SavedConversation[];
@@ -41,6 +43,7 @@ interface ConversationListProps {
   onImport: () => void;
   onNew: () => void;
   isVisible: boolean;
+  onBack: () => void;
 }
 
 /**
@@ -66,7 +69,8 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   onExport,
   onImport,
   onNew,
-  isVisible
+  isVisible,
+  onBack
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'az' | 'za'>('newest');
@@ -187,7 +191,17 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   return (
     <div className="jp-AIAssistant-conversations">
       <div className="jp-AIAssistant-conversations-header">
-        <h3>Saved Conversations</h3>
+        <div className="jp-AIAssistant-conversations-header-left">
+          <button
+            className="jp-AIAssistant-button-small"
+            onClick={onBack}
+            title="Back to chat"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} />
+            <span>Back</span>
+          </button>
+          <h3>Saved Conversations</h3>
+        </div>
         <div className="jp-AIAssistant-conversations-actions">
           <button
             className="jp-AIAssistant-button-small"

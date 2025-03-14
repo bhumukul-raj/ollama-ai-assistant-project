@@ -15,7 +15,8 @@ import {
   faList,
   faScroll,
   faToggleOn,
-  faSave
+  faSave,
+  faToggleOff
 } from '@fortawesome/free-solid-svg-icons';
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { INotebookTracker } from '@jupyterlab/notebook';
@@ -162,12 +163,14 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
   // Handler for chat message submission
   const handleChatSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Use the local input value for submission
-    sendChatMessage(localInputValue);
-
-    // Clear local input after submission
-    setLocalInputValue('');
+    if (chatInput.trim() && !isLoading) {
+      sendChatMessage(chatInput);
+      setChatInput('');
+      // Ensure auto-scroll is enabled when sending a new message
+      if (!userPreferences.autoScroll) {
+        setUserPreference('autoScroll', true);
+      }
+    }
   };
 
   // Handler for model change
@@ -178,7 +181,38 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
   // Handler for auto-scroll toggle
   const toggleAutoScroll = () => {
     setUserPreference('autoScroll', !userPreferences.autoScroll);
+
+    // Immediately scroll to bottom if auto-scroll is being enabled
+    if (!userPreferences.autoScroll && conversationRef.current) {
+      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    }
   };
+
+  // Add a ref for the conversation container
+  const conversationRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll logic - ensure this runs after messages update
+  React.useEffect(() => {
+    if (userPreferences.autoScroll && conversationRef.current && messages.length > 0) {
+      // Use requestAnimationFrame to ensure layout is complete before scrolling
+      requestAnimationFrame(() => {
+        if (conversationRef.current) {
+          conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [messages, userPreferences.autoScroll]);
+
+  // Also scroll when new messages are being generated or when dimensions change
+  React.useLayoutEffect(() => {
+    if (userPreferences.autoScroll && conversationRef.current) {
+      requestAnimationFrame(() => {
+        if (conversationRef.current) {
+          conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [messages, isLoading, userPreferences.autoScroll, containerWidth]);
 
   // Handle conversation actions
   const handleSaveConversation = () => {
@@ -304,8 +338,8 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
     switch (activeTab) {
       case 'chat':
         return (
-          <div className="jp-AIAssistant-conversationContainer" ref={containerRef}>
-            <div className="jp-AIAssistant-conversation">
+          <div className="jp-AIAssistant-conversationContainer">
+            <div className="jp-AIAssistant-conversation" ref={conversationRef} style={{ flex: '1 1 auto' }}>
               {messages.length === 0 ? (
                 <div className="jp-AIAssistant-emptyState">
                   <FontAwesomeIcon icon={faRobot} className="fa-icon-lg" style={{ marginBottom: '16px' }} />
@@ -321,7 +355,7 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
                   onStop={stopCurrentRequest}
                   onRegenerate={regenerateResponse}
                   formatMessageWithCodeBlocks={formatMessageWithCodeBlocks}
-                  containerRef={containerRef}
+                  containerRef={conversationRef}
                   containerWidth={containerWidth}
                   isCompact={isCompact}
                 />
@@ -337,6 +371,20 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
               onRegenerate={regenerateResponse}
               isCompact={isCompact}
             />
+
+            {messages.length > 0 && (
+              <div
+                className="jp-AIAssistant-scrollControl"
+                onClick={toggleAutoScroll}
+                title={userPreferences.autoScroll ? "Disable auto-scroll" : "Enable auto-scroll"}
+              >
+                <FontAwesomeIcon
+                  icon={userPreferences.autoScroll ? faToggleOn : faToggleOff}
+                  className="fa-icon-sm"
+                />
+                <span style={{ marginLeft: '4px', fontSize: '12px' }}>Auto-scroll</span>
+              </div>
+            )}
           </div>
         );
 
@@ -352,12 +400,13 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
     stopCurrentRequest,
     regenerateResponse,
     formatMessageWithCodeBlocks,
-    containerRef,
+    conversationRef,
     containerWidth,
     isCompact,
     localInputValue,
     handleChatInputChange,
-    handleChatSubmit
+    handleChatSubmit,
+    toggleAutoScroll
   ]);
 
   // Render main component
@@ -446,6 +495,7 @@ const AIAssistantPanelContent: React.FC<AIAssistantPanelProps> = ({ notebooks })
           onImport={handleImportConversation}
           onNew={handleNewConversation}
           isVisible={showConversations}
+          onBack={() => setShowConversations(false)}
         />
       )}
     </div>

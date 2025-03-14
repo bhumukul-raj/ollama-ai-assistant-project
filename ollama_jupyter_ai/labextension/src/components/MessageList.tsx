@@ -128,14 +128,29 @@ export const MessageList = React.memo<MessageListProps>(({
 
   // Auto scroll to bottom when messages change
   useEffect(() => {
-    // Only auto scroll if enabled and a new message was added
-    if (autoScroll && messagesEndRef.current && previousMessages.current.length < messages.length) {
+    // Only auto scroll if enabled and a new message was added or loading
+    if (autoScroll && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
 
     // Update previous messages reference
     previousMessages.current = messages;
-  }, [messages, autoScroll]);
+  }, [messages, autoScroll, isLoading]);
+
+  // Scroll into view when new messages arrive
+  React.useEffect(() => {
+    if (autoScroll && containerRef.current && messages.length > 0) {
+      // Force immediate scroll for better user experience
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+
+      // Then use animation frame for smoother scroll after rendering
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [messages, autoScroll, isLoading]);
 
   // Calculate message style based on container width
   const messageStyle = {
@@ -280,6 +295,15 @@ export const MessageList = React.memo<MessageListProps>(({
     );
   };
 
+  // Make sure the ref at the end of the messages is properly rendered
+  const renderEndRef = () => (
+    <div
+      ref={messagesEndRef}
+      style={{ height: '1px', width: '100%', clear: 'both' }}
+      aria-hidden="true"
+    />
+  );
+
   return (
     <div className={`jp-AIAssistant-conversation ${isDarkTheme ? 'jp-AIAssistant-conversation-dark' : 'jp-AIAssistant-conversation-light'}`}>
       {messages.length === 0 ? (
@@ -290,8 +314,8 @@ export const MessageList = React.memo<MessageListProps>(({
         </div>
       ) : (
         <>
-          {messages.map(renderMessage)}
-          <div ref={messagesEndRef} />
+          {messages.map((message, index) => renderMessage(message, index))}
+          {renderEndRef()}
         </>
       )}
     </div>
