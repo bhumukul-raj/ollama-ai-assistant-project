@@ -158,44 +158,92 @@ export const formatText = (text: string): JSX.Element[] => {
   return paragraphs
     .filter(para => para.trim().length > 0) // Remove empty paragraphs
     .map((paragraph, i) => {
-      // Check for headers (# Header)
-      const headerMatch = paragraph.match(/^(#{1,6})\s+(.+)$/);
+      // Check for headers (# Header) - more permissive regex allowing whitespace before #
+      const headerMatch = paragraph.match(/^\s*(#{1,6})\s+(.+)$/);
       if (headerMatch) {
         const level = headerMatch[1].length;
         const content = headerMatch[2];
         const HeaderTag = `h${level}` as keyof JSX.IntrinsicElements;
+
+        // Process the content for any inline formatting before putting it in the heading
         return <HeaderTag key={i}>{processInlineFormatting(content)}</HeaderTag>;
       }
 
-      // Check for unordered lists
-      if (paragraph.match(/^[-*+]\s+/m)) {
-        const items = paragraph.split(/\n/).filter(line => line.trim());
+      // Check for unordered lists - improve detection with multiline list items
+      // Check if the paragraph starts with a list marker (-, *, +)
+      if (paragraph.match(/^\s*[-*+]\s+/m)) {
+        const lines = paragraph.split(/\n/).filter(line => line.trim());
+
+        // Group lines into list items - handle items that span multiple lines
+        const items: string[] = [];
+        let currentItem = '';
+
+        lines.forEach(line => {
+          if (line.match(/^\s*[-*+]\s+/)) {
+            // This is a new list item
+            if (currentItem) {
+              items.push(currentItem);
+            }
+            currentItem = line.replace(/^\s*[-*+]\s+/, '');
+          } else {
+            // This is continuation of the previous item
+            currentItem += ' ' + line.trim();
+          }
+        });
+
+        // Add the last item
+        if (currentItem) {
+          items.push(currentItem);
+        }
+
         return (
           <ul key={i}>
             {items.map((item, j) => {
-              const content = item.replace(/^[-*+]\s+/, '');
-              return <li key={j}>{processInlineFormatting(content)}</li>;
+              return <li key={j}>{processInlineFormatting(item)}</li>;
             })}
           </ul>
         );
       }
 
-      // Check for ordered lists
-      if (paragraph.match(/^\d+\.\s+/m)) {
-        const items = paragraph.split(/\n/).filter(line => line.trim());
+      // Check for ordered lists - improve detection with multiline list items
+      if (paragraph.match(/^\s*\d+\.\s+/m)) {
+        const lines = paragraph.split(/\n/).filter(line => line.trim());
+
+        // Group lines into list items - handle items that span multiple lines
+        const items: string[] = [];
+        let currentItem = '';
+
+        lines.forEach(line => {
+          if (line.match(/^\s*\d+\.\s+/)) {
+            // This is a new list item
+            if (currentItem) {
+              items.push(currentItem);
+            }
+            currentItem = line.replace(/^\s*\d+\.\s+/, '');
+          } else {
+            // This is continuation of the previous item
+            currentItem += ' ' + line.trim();
+          }
+        });
+
+        // Add the last item
+        if (currentItem) {
+          items.push(currentItem);
+        }
+
+        // Use standard <ol> which automatically handles numbering
         return (
           <ol key={i}>
             {items.map((item, j) => {
-              const content = item.replace(/^\d+\.\s+/, '');
-              return <li key={j}>{processInlineFormatting(content)}</li>;
+              return <li key={j}>{processInlineFormatting(item)}</li>;
             })}
           </ol>
         );
       }
 
-      // Check for blockquotes
-      if (paragraph.startsWith('>')) {
-        const content = paragraph.replace(/^>\s+/gm, '').replace(/^>/gm, '');
+      // Check for blockquotes - more permissive regex allowing whitespace
+      if (paragraph.trim().startsWith('>')) {
+        const content = paragraph.replace(/^\s*>\s+/gm, '').replace(/^\s*>/gm, '');
         return <blockquote key={i}>{processInlineFormatting(content)}</blockquote>;
       }
 
@@ -260,17 +308,26 @@ const processEmphasis = (text: string): string | JSX.Element => {
   // Process bold and italic
   let processed = text;
 
+  // Process in a specific order to handle nested patterns correctly:
+  // 1. Links first (they can contain other formatting)
+  // 2. Bold next (can contain italic)
+  // 3. Italic last (simplest)
+
   // Convert Markdown links: [text](url)
   processed = processed.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
   );
 
-  // Convert bold: **text** or __text__
-  processed = processed.replace(/(\*\*|__)(.*?)\1/g, '<strong>$2</strong>');
+  // Convert bold: **text** or __text__ 
+  // Use a more robust pattern that can handle multiple bold sections
+  processed = processed.replace(/(\*\*|__)([^*_]+?)\1/g, '<strong>$2</strong>');
 
-  // Convert italic: *text* or _text_
-  processed = processed.replace(/(\*|_)(.*?)\1/g, '<em>$2</em>');
+  // Second pass for any bold text that might contain other elements
+  processed = processed.replace(/(\*\*|__)(.+?)\1/g, '<strong>$2</strong>');
+
+  // Convert italic: *text* or _text_ - but not if it's part of a word like normal_variable
+  processed = processed.replace(/(?<!\w)(\*|_)([^\*_]+?)(?!\w)\1/g, '<em>$2</em>');
 
   // If we made any replacements, render as HTML
   if (processed !== text) {

@@ -649,6 +649,138 @@
   box-sizing: border-box;
 }
 
+/* Add proper heading styling */
+.jp-AIAssistant-formatted-content h1,
+.jp-AIAssistant-formatted-content h2,
+.jp-AIAssistant-formatted-content h3,
+.jp-AIAssistant-formatted-content h4,
+.jp-AIAssistant-formatted-content h5,
+.jp-AIAssistant-formatted-content h6 {
+  margin-top: 1.2em;
+  margin-bottom: 0.6em;
+  color: var(--jp-ui-font-color0);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.jp-AIAssistant-formatted-content h1 {
+  font-size: 1.4em;
+  border-bottom: 1px solid var(--jp-border-color1);
+  padding-bottom: 0.2em;
+}
+
+.jp-AIAssistant-formatted-content h2 {
+  font-size: 1.3em;
+}
+
+.jp-AIAssistant-formatted-content h3 {
+  font-size: 1.2em;
+}
+
+.jp-AIAssistant-formatted-content h4 {
+  font-size: 1.1em;
+  font-weight: 500;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+}
+
+.jp-AIAssistant-formatted-content h5,
+.jp-AIAssistant-formatted-content h6 {
+  font-size: 1em;
+}
+
+/* Make sure bold text within headings is clearly visible */
+.jp-AIAssistant-formatted-content h1 strong,
+.jp-AIAssistant-formatted-content h2 strong,
+.jp-AIAssistant-formatted-content h3 strong,
+.jp-AIAssistant-formatted-content h4 strong,
+.jp-AIAssistant-formatted-content h5 strong,
+.jp-AIAssistant-formatted-content h6 strong {
+  background-color: transparent;
+  padding: 0;
+  font-weight: 800;
+  color: inherit;
+}
+
+/* Bullet points and lists */
+.jp-AIAssistant-formatted-content ul,
+.jp-AIAssistant-formatted-content ol {
+  padding-left: 1.8em;
+  margin: 0.6em 0;
+}
+
+/* Adjust list items following headers */
+.jp-AIAssistant-formatted-content h1 + ul,
+.jp-AIAssistant-formatted-content h2 + ul,
+.jp-AIAssistant-formatted-content h3 + ul,
+.jp-AIAssistant-formatted-content h4 + ul,
+.jp-AIAssistant-formatted-content h5 + ul,
+.jp-AIAssistant-formatted-content h6 + ul,
+.jp-AIAssistant-formatted-content h1 + ol,
+.jp-AIAssistant-formatted-content h2 + ol,
+.jp-AIAssistant-formatted-content h3 + ol,
+.jp-AIAssistant-formatted-content h4 + ol,
+.jp-AIAssistant-formatted-content h5 + ol,
+.jp-AIAssistant-formatted-content h6 + ol {
+  margin-top: 0.3em;
+}
+
+.jp-AIAssistant-formatted-content ul {
+  list-style-type: disc;
+}
+
+.jp-AIAssistant-formatted-content ul ul {
+  list-style-type: circle;
+  margin: 0.3em 0;
+}
+
+.jp-AIAssistant-formatted-content ul ul ul {
+  list-style-type: square;
+  margin: 0.3em 0;
+}
+
+.jp-AIAssistant-formatted-content ol {
+  list-style-type: decimal;
+  color: var(--jp-brand-color1);
+  font-weight: 600;
+}
+
+.jp-AIAssistant-formatted-content li {
+  margin: 0.4em 0;
+  position: relative;
+  color: var(--jp-ui-font-color0);
+  line-height: 1.4;
+}
+
+/* Tighten lists under list items */
+.jp-AIAssistant-formatted-content li > ul,
+.jp-AIAssistant-formatted-content li > ol {
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
+}
+
+/* Style the list markers for unordered lists */
+.jp-AIAssistant-formatted-content ul li::marker {
+  color: var(--jp-brand-color1);
+  font-weight: bold;
+}
+
+/* Emphasis and strong formatting */
+.jp-AIAssistant-formatted-content em {
+  font-style: italic;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-AIAssistant-formatted-content strong {
+  font-weight: 700;
+  color: var(--jp-ui-font-color0);
+  position: relative;
+  background-color: rgba(0, 0, 0, 0.03);
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+/* Adjust paragraph styling */
 .jp-AIAssistant-formatted-content p {
   margin: 0 0 8px 0;
   white-space: pre-wrap;
@@ -659,6 +791,15 @@
 
 .jp-AIAssistant-formatted-content p:last-child {
   margin-bottom: 0;
+}
+
+/* Blockquotes */
+.jp-AIAssistant-formatted-content blockquote {
+  border-left: 3px solid var(--jp-brand-color1);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: var(--jp-ui-font-color2);
+  font-style: italic;
 }
 
 .jp-AIAssistant-code-block {
@@ -1352,10 +1493,6 @@
 
 .jp-AIAssistant-popup-content ul ul ul {
   list-style-type: square;
-}
-
-.jp-AIAssistant-popup-content ol {
-  list-style-type: decimal;
 }
 
 .jp-AIAssistant-popup-content li {
