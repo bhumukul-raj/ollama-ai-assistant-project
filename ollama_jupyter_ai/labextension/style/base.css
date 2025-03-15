@@ -99,7 +99,7 @@
 
 /* Widget container */
 .jp-AIAssistant-container {
-  height: 100vh;
+  height: calc(100vh - 24px); /* Subtract status bar height */
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -111,17 +111,13 @@
 .jp-AIAssistant {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   width: 100%;
-  min-height: 0;
-  max-height: none;
-  position: relative;
-  background-color: var(--jp-layout-color1);
-  color: var(--jp-ui-font-color0);
-  font-family: var(--jp-ui-font-family);
-  font-size: var(--jp-ui-font-size1);
-  line-height: 1.5;
   overflow: hidden;
+  box-sizing: border-box;
+  background: var(--jp-layout-color1);
+  color: var(--jp-content-font-color1);
+  position: relative;
 }
 
 /* Header */
@@ -158,7 +154,7 @@
   min-height: 0;
   overflow: hidden;
   position: relative;
-  height: calc(100% - 120px);
+  height: calc(100% - 144px); /* Adjusted to account for status bar space */
 }
 
 .jp-AIAssistant-conversation {
@@ -246,8 +242,6 @@
 
 .jp-AIAssistant-modelSelect:focus {
   outline: none;
-  border-color: var(--jp-brand-color1, #3b82f6);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }
 
 .jp-AIAssistant-modelSelect:disabled {
@@ -393,7 +387,7 @@
 /* Input area */
 .jp-AIAssistant-input {
   position: relative;
-  z-index: 10;
+  z-index: 999;
   background-color: var(--jp-layout-color1);
   border-top: 1px solid var(--jp-border-color1);
   min-height: 60px;
@@ -409,6 +403,7 @@
 /* Compact mode for input panel */
 .jp-AIAssistant-input-compact {
   padding: 6px;
+  margin-bottom: 15px;
 }
 
 .jp-AIAssistant-input-compact .jp-AIAssistant-input-textarea {
@@ -416,7 +411,7 @@
 }
 
 .jp-AIAssistant-input-compact .jp-AIAssistant-input-button {
-  padding: 4px 8px;
+  margin: 4px;
   font-size: 12px;
 }
 
@@ -451,8 +446,6 @@
 
 .jp-AIAssistant-input-textarea:focus {
   outline: none;
-  border-color: var(--jp-brand-color1);
-  box-shadow: 0 0 0 1px var(--jp-brand-color1);
 }
 
 .jp-AIAssistant-input-actions {
@@ -786,7 +779,7 @@
     min-width: 50%;
     width: 100%;
     padding: 10px;
-    margin-bottom: 45px;
+    margin-bottom: 24px; /* Ensure status bar space on all screen sizes */
     max-height: 180px;
   }
   .jp-AIAssistant-input-form {
@@ -806,6 +799,7 @@
     min-width: 70%;
     width: 90%;
     padding: 10px 10px 30px 10px;
+    margin-bottom: 28px; /* Slightly more margin on mobile */
   }
   .jp-AIAssistant-input-form {
     flex-direction: column;
@@ -825,9 +819,13 @@
     width: 95%;
     min-height: 50px;
     max-height: 150px;
+    margin-bottom: 28px;
   }
   .jp-AIAssistant-conversation {
     padding: 8px;
+  }
+  .jp-AIAssistant-container {
+    height: calc(100vh - 28px); /* More space on smaller screens */
   }
   .jp-AIAssistant-modelSelector {
     width: 100%;
@@ -863,10 +861,10 @@
 }
 
 /* Accessibility improvements */
-.jp-AIAssistant:focus-within {
+/* .jp-AIAssistant:focus-within {
   outline: 2px solid var(--jp-brand-color1);
   outline-offset: -2px;
-}
+} */
 
 .jp-AIAssistant-high-contrast {
   --ai-assistant-bg-primary: #000000;
@@ -1611,6 +1609,12 @@
   font-size: 13px;
   background-color: var(--jp-layout-color1);
   color: var(--jp-ui-font-color0);
+}
+
+.jp-AIAssistant-conversations-search input:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--jp-border-color1); /* Keep the same border color as default */
 }
 
 .jp-AIAssistant-search-clear {
