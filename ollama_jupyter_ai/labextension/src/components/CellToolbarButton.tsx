@@ -166,30 +166,52 @@ const CellToolbarButton: React.FC<CellToolbarButtonProps> = ({ cell, onClick, is
 
       // Only calculate for active panels
       actionTypes.forEach(type => {
-        if (!activePanels.includes(type)) return;
+        if (!activePanels.includes(type)) {
+          return;
+        }
 
         const panel = panelRefs.current[type];
-        if (!panel) return;
+        if (!panel) {
+          return;
+        }
 
         // Apply the current position
         panel.style.bottom = `${currentBottom}px`;
         panel.style.zIndex = '19'; // Ensure consistent z-index
-
-        // Adjust for the next panel (add panel height + margin)
-        // Use a fixed height for consistency during loading/loaded states
-        const panelHeight = 210; // Fixed height to prevent jumps
-        currentBottom -= (panelHeight + 10); // 10px gap between panels
+        currentBottom -= 220; // Move next panel up
       });
     };
 
     // Use requestAnimationFrame for better performance
-    const frameId = requestAnimationFrame(updatePanelPositions);
+    const frameId = requestAnimationFrame(() => {
+      updatePanelPositions();
+    });
 
     // Clean up animation frame on unmount or when dependencies change
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [activePanels, loadingStates]); // Add loadingStates as dependency to recalculate when loading changes
+  }, [activePanels, loadingStates]);
+
+  // Update panel positions
+  useEffect(() => {
+    const updatePanelPositions = () => {
+      Object.entries(panelRefs.current).forEach(([type, ref]) => {
+        if (ref) {
+          const button = ref;
+          const rect = button.getBoundingClientRect();
+          const panel = panelRefs.current[type as ActionType];
+          if (panel) {
+            panel.style.top = `${rect.bottom}px`;
+            panel.style.left = `${rect.left}px`;
+          }
+        }
+      });
+    };
+
+    window.addEventListener('resize', updatePanelPositions);
+    return () => window.removeEventListener('resize', updatePanelPositions);
+  }, []);
 
   // Memoized function to get cell content to prevent unnecessary recalculations
   const getCellContent = useCallback(() => {
@@ -459,6 +481,7 @@ For each suggestion, explain the benefit and provide a brief example if applicab
     }
   }, []);
 
+  // Add debug logging to panel rendering
   const renderPopupPanel = useCallback((type: ActionType) => {
     const isActive = activePanels.includes(type);
     const isLoading = loadingStates[type];
@@ -468,7 +491,9 @@ For each suggestion, explain the benefit and provide a brief example if applicab
     return (
       <div
         key={`panel-${type}`}
-        ref={(node) => (panelRefs.current[type] = node)}
+        ref={(node) => {
+          panelRefs.current[type] = node;
+        }}
         className={`jp-AIAssistant-popup-panel ${isActive ? 'active' : ''}`}
         data-panel-type={type}
         data-loading={isLoading ? 'true' : 'false'}

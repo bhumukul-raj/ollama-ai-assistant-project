@@ -46,25 +46,21 @@ interface Message {
  * 
  * @interface MessageListProps
  * @property {Message[]} messages - Array of messages to display
- * @property {boolean} autoScroll - Whether to automatically scroll to new messages
  * @property {boolean} isLoading - Whether the assistant is currently generating a response
  * @property {() => void} onRetry - Callback for retrying the last failed message
  * @property {(requestId?: string) => void} onStop - Callback for stopping the current generation
  * @property {() => void} onRegenerate - Callback for regenerating the last assistant response
  * @property {(content: string) => JSX.Element} formatMessageWithCodeBlocks - Function to format message content with code blocks
- * @property {React.RefObject<HTMLDivElement>} containerRef - Reference to the container element
  * @property {number} [containerWidth] - Width of the container element for responsive layouts
  * @property {boolean} [isCompact] - Whether to display messages in compact mode
  */
 interface MessageListProps {
   messages: Message[];
-  autoScroll: boolean;
   isLoading: boolean;
   onRetry: () => void;
   onStop: (requestId?: string) => void;
   onRegenerate: () => void;
   formatMessageWithCodeBlocks: (content: string) => JSX.Element;
-  containerRef: React.RefObject<HTMLDivElement>;
   containerWidth?: number;
   isCompact?: boolean;
 }
@@ -107,55 +103,25 @@ const TypingIndicator: React.FC = () => {
   );
 };
 
-// Optimize the MessageList component with React.memo
-export const MessageList = React.memo<MessageListProps>(({
+const MessageList: React.FC<MessageListProps> = ({
   messages,
-  autoScroll,
   isLoading,
   onRetry,
   onStop,
   onRegenerate,
   formatMessageWithCodeBlocks,
-  containerRef,
   containerWidth = 0,
   isCompact = false
 }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const previousMessages = useRef<Message[]>([]);
 
   // Get theme information
   const { isDarkTheme } = useTheme();
 
-  // Auto scroll to bottom when messages change
+  // Update previous messages reference
   useEffect(() => {
-    // Only auto scroll if enabled and a new message was added or loading
-    if (autoScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    // Update previous messages reference
     previousMessages.current = messages;
-  }, [messages, autoScroll, isLoading]);
-
-  // Scroll into view when new messages arrive
-  React.useEffect(() => {
-    if (autoScroll && containerRef.current && messages.length > 0) {
-      // Force immediate scroll for better user experience
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-
-      // Then use animation frame for smoother scroll after rendering
-      requestAnimationFrame(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTop = containerRef.current.scrollHeight;
-        }
-      });
-    }
-  }, [messages, autoScroll, isLoading]);
-
-  // Calculate message style based on container width
-  const messageStyle = {
-    maxWidth: containerWidth > 0 ? `${Math.min(containerWidth * 0.8, 800)}px` : '80%'
-  };
+  }, [messages]);
 
   // Format and render timestamp
   const renderTimestamp = (message: Message) => {
@@ -230,7 +196,7 @@ export const MessageList = React.memo<MessageListProps>(({
       <div
         key={index}
         className={`jp-AIAssistant-message ${isUser ? 'jp-AIAssistant-message-user' : 'jp-AIAssistant-message-assistant'} ${isLoading ? 'jp-AIAssistant-message-loading' : ''} ${isCompact ? 'jp-AIAssistant-message-compact' : ''}`}
-        style={messageStyle}
+        style={{ maxWidth: containerWidth > 0 ? `${Math.min(containerWidth * 0.8, 800)}px` : '80%' }}
       >
         {/* Message controls for assistant messages */}
         {isAssistant && !isLoading && (
@@ -295,15 +261,6 @@ export const MessageList = React.memo<MessageListProps>(({
     );
   };
 
-  // Make sure the ref at the end of the messages is properly rendered
-  const renderEndRef = () => (
-    <div
-      ref={messagesEndRef}
-      style={{ height: '1px', width: '100%', clear: 'both' }}
-      aria-hidden="true"
-    />
-  );
-
   return (
     <div className={`jp-AIAssistant-conversation ${isDarkTheme ? 'jp-AIAssistant-conversation-dark' : 'jp-AIAssistant-conversation-light'}`}>
       {messages.length === 0 ? (
@@ -313,13 +270,10 @@ export const MessageList = React.memo<MessageListProps>(({
           </div>
         </div>
       ) : (
-        <>
-          {messages.map((message, index) => renderMessage(message, index))}
-          {renderEndRef()}
-        </>
+        messages.map((message, index) => renderMessage(message, index))
       )}
     </div>
   );
-});
+};
 
 export default MessageList; 

@@ -49,21 +49,16 @@ export interface Message {
 export type TabType = 'chat';
 
 /**
- * User preferences for the AI Assistant.
- * 
+ * Interface for user preferences
  * @interface UserPreferences
- * @property {boolean} autoScroll - Whether to automatically scroll to new messages
- * @property {string} defaultModel - The default Ollama model to use
- * @property {('light' | 'dark' | 'auto')} theme - The UI theme preference
- * @property {boolean} showTimestamps - Whether to display message timestamps
- * @property {boolean} enableKeyboardShortcuts - Whether keyboard shortcuts are enabled
+ * @property {string} model - The selected AI model
+ * @property {boolean} showConversations - Whether to show the conversations panel
+ * @property {boolean} isCompact - Whether to use compact mode
  */
 interface UserPreferences {
-  autoScroll: boolean;
-  defaultModel: string;
-  theme: 'light' | 'dark' | 'auto';
-  showTimestamps: boolean;
-  enableKeyboardShortcuts: boolean;
+  model: string;
+  showConversations: boolean;
+  isCompact: boolean;
 }
 
 /**
@@ -138,32 +133,10 @@ interface AIAssistantProviderProps {
   notebooks: INotebookTracker;
 }
 
-/**
- * Load user preferences from localStorage or return defaults
- */
-const loadUserPreferences = (): UserPreferences => {
-  try {
-    const savedPrefs = localStorage.getItem('ollama_user_preferences');
-
-    if (savedPrefs) {
-      const parsedPrefs = JSON.parse(savedPrefs);
-      return {
-        ...parsedPrefs,
-        // Always use 'auto' for theme, as we'll sync with JupyterLab
-        theme: 'auto'
-      };
-    }
-  } catch (error) {
-    console.error('Failed to load user preferences', error);
-  }
-
-  return {
-    autoScroll: true,
-    defaultModel: 'mistral',
-    theme: 'auto', // Default to auto for JupyterLab theme sync
-    showTimestamps: true,
-    enableKeyboardShortcuts: true
-  };
+const defaultPreferences: UserPreferences = {
+  model: 'llama2',
+  showConversations: true,
+  isCompact: false,
 };
 
 /**
@@ -187,7 +160,7 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('chat');
-  const [userPreferences, setUserPreferences] = useState<UserPreferences>(loadUserPreferences);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>(defaultPreferences);
 
   // Get filtered messages for current tab
   const filteredMessages = useMemo(() =>
@@ -197,7 +170,7 @@ export const AIAssistantProvider: React.FC<AIAssistantProviderProps> = ({ childr
 
   // Use custom hooks
   const ollama = useOllamaApi({
-    defaultModel: userPreferences.defaultModel
+    defaultModel: userPreferences.model
   });
 
   const notebook = useNotebookContent(notebooks);

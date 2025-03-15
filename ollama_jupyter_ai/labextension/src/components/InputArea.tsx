@@ -12,7 +12,8 @@ import {
   faSync,
   faStop,
   faExpand,
-  faCompress
+  faCompress,
+  faSpinner
 } from '@fortawesome/free-solid-svg-icons';
 
 /**
@@ -62,18 +63,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   /**
-   * Auto-resize textarea based on content height
-   * Adjusts the height to match the content, with a maximum height of 200px
-   */
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-    }
-  }, [inputValue]);
-
-  /**
    * Handle Ctrl+Enter or Cmd+Enter keyboard shortcut for submission
    * Submits the form if there's valid input and no request is loading
    * 
@@ -89,33 +78,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
   };
 
   /**
-   * Apply custom styles for compact mode
-   * Reduces padding and element sizes for space-constrained UIs
-   */
-  const inputStyle = React.useMemo(() => {
-    if (isCompact) {
-      return {
-        padding: '6px'
-      };
-    }
-    return {};
-  }, [isCompact]);
-
-  /**
-   * Apply custom styles for buttons in compact mode
-   * Reduces button size and padding for space-constrained UIs
-   */
-  const buttonStyle = React.useMemo(() => {
-    if (isCompact) {
-      return {
-        padding: '4px 8px',
-        fontSize: '12px'
-      };
-    }
-    return {};
-  }, [isCompact]);
-
-  /**
    * Handle stop request with proper logging
    * Triggers the parent component to find and stop the active request
    */
@@ -125,19 +87,23 @@ export const InputArea: React.FC<InputAreaProps> = ({
     onStopRequest();
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    onInputChange(e);
+    // Don't change height directly here - let CSS control heights based on isExpanded
+  };
+
   return (
-    <div className={`jp-AIAssistant-input ${isExpanded ? 'jp-AIAssistant-input-expanded' : ''} ${isCompact ? 'jp-AIAssistant-input-compact' : ''}`} style={inputStyle}>
+    <div className={`jp-AIAssistant-input ${isExpanded ? 'jp-AIAssistant-input-expanded' : ''} ${isCompact ? 'jp-AIAssistant-input-compact' : ''}`}>
       <form className="jp-AIAssistant-input-form" onSubmit={onSubmit}>
         <textarea
           ref={textareaRef}
           className="jp-AIAssistant-input-textarea"
           value={inputValue}
-          onChange={onInputChange}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder={isCompact ? "Ask..." : "Ask a question or type a command..."}
           disabled={isLoading}
           rows={1}
-          style={isCompact ? { minHeight: '36px' } : {}}
         />
 
         <div className="jp-AIAssistant-input-actions">
@@ -163,7 +129,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
               className="jp-AIAssistant-input-button jp-AIAssistant-action-button-stop"
               onClick={handleStopRequest}
               title="Stop generation"
-              style={buttonStyle}
             >
               <FontAwesomeIcon icon={faStop} className="fa-icon-sm" />
             </button>
@@ -177,7 +142,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
                   onClick={onRegenerate}
                   disabled={isLoading}
                   title="Regenerate last response"
-                  style={buttonStyle}
                 >
                   <FontAwesomeIcon icon={faSync} className="fa-icon-sm" />
                 </button>
@@ -189,7 +153,6 @@ export const InputArea: React.FC<InputAreaProps> = ({
                 className="jp-AIAssistant-input-button"
                 disabled={isLoading || !inputValue.trim()}
                 title="Send message (Ctrl+Enter)"
-                style={buttonStyle}
               >
                 <FontAwesomeIcon icon={faPaperPlane} className="fa-icon-sm" />
               </button>
